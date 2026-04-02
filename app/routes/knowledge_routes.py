@@ -1,0 +1,120 @@
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, status
+from beanie import PydanticObjectId
+import shutil
+import os
+
+from app.models.lecture import Lecture, LectureSource
+from app.models.subject import Subject
+from app.models.user import User
+from app.schemas.knowledge_schema import UploadResponse, UploadTextRequest, UploadVideoRequest
+from app.auth.dependencies import get_current_active_user
+
+# We will implement these in the app.knowledge module
+from app.knowledge.upload_pdf import process_pdf_background
+from app.knowledge.upload_text import process_text_background
+from app.knowledge.video_processor import process_video_background
+
+router = APIRouter(prefix="/knowledge", tags=["Knowledge Ingestion"])
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@router.post("/upload_pdf/{lecture_id}", response_model=UploadResponse)
+async def upload_pdf(
+    lecture_id: str,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user)
+):
+    lecture = await Lecture.get(PydanticObjectId(lecture_id))
+    if not lecture:
+        raise HTTPException(status_code=404, detail="Lecture not found")
+    subject = await Subject.get(lecture.subject.ref.id)
+    if not subject or str(subject.owner.ref.id) != str(current_user.id):
+        raise HTTPException(status_code=404, detail="Lecture not found")
+    lecture.subject = subject
+        
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported here")
+
+    file_location = f"{UPLOAD_DIR}/{lecture_id}_{file.filename}"
+    with open(file_location, "wb+") as file_object:
+        shutil.copyfileobj(file.file, file_object)
+        
+    lecture.sources.append(LectureSource(type="pdf", url=file_location, status="processing"))
+    lecture.status = "processing"
+    await lecture.save()
+
+    # Pass to background task
+    background_tasks.add_task(process_pdf_background, lecture_id, file_location)
+
+    return UploadResponse(
+        filename=file.filename,
+        lecture_id=lecture_id,
+        status="processing",
+        message="PDF upload successful, processing started in background"
+    )
+
+@router.post("/upload_video/{lecture_id}", response_model=UploadResponse)
+async def upload_video(
+    lecture_id: str,
+    request: UploadVideoRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_active_user)
+):
+    lecture = await Lecture.get(PydanticObjectId(lecture_id))
+    if not lecture:
+        raise HTTPException(status_code=404, detail="Lecture not found")
+    subject = await Subject.get(lecture.subject.ref.id)
+    if not subject or str(subject.owner.ref.id) != str(current_user.id):
+        raise HTTPException(status_code=404, detail="Lecture not found")
+    lecture.subject = subject
+        
+    lecture.sources.append(LectureSource(type="video", url=request.url, status="processing"))
+    lecture.status = "processing"
+    await lecture.save()
+
+    background_tasks.add_task(process_video_background, lecture_id, request.url, request.extract_frames)
+
+    warning = None
+    if request.extract_frames:
+        warning = (
+            "Frame extraction is enabled. Processing time may be significantly longer "
+            "depending on video length (estimated 5–35+ minutes for a typical lecture)."
+        )
+
+    return UploadResponse(
+        filename=request.url,
+        lecture_id=lecture_id,
+        status="processing",
+        message="Video processing started in background",
+        warning=warning
+    )
+
+@router.post("/upload_text/{lecture_id}", response_model=UploadResponse)
+async def upload_text(
+    lecture_id: str,
+    request: UploadTextRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_active_user)
+):
+    lecture = await Lecture.get(PydanticObjectId(lecture_id))
+    if not lecture:
+        raise HTTPException(status_code=404, detail="Lecture not found")
+    subject = await Subject.get(lecture.subject.ref.id)
+    if not subject or str(subject.owner.ref.id) != str(current_user.id):
+        raise HTTPException(status_code=404, detail="Lecture not found")
+    lecture.subject = subject
+        
+    lecture.sources.append(LectureSource(type="text", url="", status="processing"))
+    lecture.status = "processing"
+    await lecture.save()
+
+    background_tasks.add_task(process_text_background, lecture_id, request.text)
+
+    return UploadResponse(
+        filename="raw_text",
+        lecture_id=lecture_id,
+        status="processing",
+        message="Text upload successful, processing started in background"
+    )

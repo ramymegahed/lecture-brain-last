@@ -1,0 +1,14 @@
+# Production config — image is fully self-contained (no volume mounts).
+# For development with hot-reload, run:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  api:
+    build: .
+    ports:
+      - "8002:8000"   # Access via http://localhost:8002/docs
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped

@@ -1,0 +1,20 @@
+# Development override — use with:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# What this does:
+#   - Mounts ./app into the container so code changes are picked up instantly (no rebuild)
+#   - Enables uvicorn --reload so the server restarts automatically on file changes
+#   - Removes restart: unless-stopped (let it fail loudly during dev)
+#   - Disables uploads volume override so we still get the base one from docker-compose.yml
+
+services:
+  api:
+    # Override the CMD to enable hot-reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      # Live-mount the app source — edits reflect inside container immediately
+      - ./app:/app/app
+      # Keep uploads mounted for file ingestion testing
+      - ./uploads:/app/uploads
+    # Don't auto-restart in dev — let crashes surface cleanly
+    restart: "no"
