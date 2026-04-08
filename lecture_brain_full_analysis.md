@@ -415,3 +415,24 @@ Using only vector-retrieved chunks risks missing the big picture when chunks are
 11. **Quiz uses only `KnowledgeCard`, not vector search**: `quiz.py` generates questions using only the global summary. This can result in repetitive or high-level questions. Adding a vector search step to pull diverse, specific chunks from across the lecture would improve quiz quality significantly.
 12. **`lecture_id` stored as both `Link` and `str` in `KnowledgeChunk`**: This is an intentional workaround for the `$vectorSearch` filter (see §3). It works well, but it's worth documenting clearly to avoid confusion for new developers.
 13. **No token budget management**: In `upload_pdf.py`, `full_text[:15000]` is used as a hard character cap for the Knowledge Card prompt. For very large PDFs this truncates significant portions. A smarter approach would be to take a distributed sample (first page, middle, last page) or summarize in chunks and merge.
+
+---
+
+## 7. Resolved Issues (Phase 1–3 Optimizations)
+
+During the stabilization phase, several of the critical and architectural issues outlined above were resolved to prepare the backend for a production-ready graduation demo:
+
+### Phase 1: Critical Fixes & Stability
+*   **Shared OpenAI Client**: Created a module-level `AsyncOpenAI` singleton in `app/core/clients.py` instead of instantiating it per request (resolves #6).
+*   **Whisper Caching & Audio Cleanup**: Upgraded to the `"small"` Whisper model and cached it using a lazy-loaded singleton. Wrapped audio parsing in a `try/finally` block and added an app startup sweep task to guarantee no `.mp3` orphaned files remain on disk (resolves #3 and #2 regarding video temporary audio).
+*   **Zero-Disk PDF Processing**: Re-wrote the PDF pipeline to evaluate raw byte streams strictly in-memory using `PyMuPDF`, discarding the file context locally after parsing rather than saving it (resolves #2 regarding PDFs).
+
+### Phase 2: Code Quality
+*   **Centralized Logging**: Replaced all standard `print()` statements with standard Python `logging` to provide reliable stdout monitoring data for Docker environments (resolves #9).
+*   **Schema Documentation**: Added strict Python docstrings for `KnowledgeChunk` explaining the DBRef/String duplication on `lecture_id` (resolves #12).
+
+### Phase 3: Feature Enhancements
+*   **Vector Search in Quizzes**: Re-engineered `quiz.py` to retrieve up to 10 context-heavy diverse chunks using `$vectorSearch` in addition to the `KnowledgeCard` global summary, ensuring detailed, nuanced MCQs (resolves #11).
+*   **Smart Token Sampling**: Replaced the native `[:15000]` truncation with an intelligent `sample_document_text()` splitter that pulls 50% from the start, 25% from the middle, and 25% from the end (resolves #13).
+*   **Document-Level Chunking**: Updated `chunking.py` to concat all pages into a complete string to avoid severing sentences across page breaks, matching them back to the correct metadata using a mathematical `bisect` logic mapping array (resolves #7).
+*   **Re-Indexing Param**: Introduced an optional `?replace=true` query parameter for the ingestion endpoints allowing strict purging of prior chunks and cards (resolves #8).
