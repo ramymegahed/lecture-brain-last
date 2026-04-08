@@ -1,7 +1,7 @@
 from typing import Tuple, List
 from beanie import PydanticObjectId
-from openai import AsyncOpenAI
-import os
+
+from app.core.clients import openai_client
 
 from app.database.mongodb import vector_search
 from app.knowledge.embeddings import get_embeddings
@@ -66,8 +66,7 @@ async def generate_answer(message: str, lecture_id: str, user_id: PydanticObject
         messages.extend(history)
     messages.append({"role": "user", "content": message})
 
-    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    response = await client.chat.completions.create(
+    response = await openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
         temperature=0.2

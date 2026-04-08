@@ -1,16 +1,17 @@
-from openai import AsyncOpenAI
 import json
 from beanie import PydanticObjectId
+
+from app.core.clients import openai_client
 
 from app.models.lecture import Lecture
 from app.models.knowledge_card import KnowledgeCard
 
 async def generate_and_save_knowledge_card(lecture_id: str, document_text: str):
     """
-    Uses OpenAI to generate a global summary and key concepts 
-    from a large chunk of the document.
+    Uses OpenAI to generate a global summary and key concepts
+    from a representative sample of the document.
+    Uses the shared openai_client singleton from app.core.clients.
     """
-    client = AsyncOpenAI()
     
     existing_card = await KnowledgeCard.find_one(KnowledgeCard.lecture.id == PydanticObjectId(lecture_id))
     
@@ -42,7 +43,7 @@ async def generate_and_save_knowledge_card(lecture_id: str, document_text: str):
     """
     
     try:
-        response = await client.chat.completions.create(
+        response = await openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             response_format={ "type": "json_object" },

@@ -1,7 +1,7 @@
 from typing import Tuple
 from beanie import PydanticObjectId
-from openai import AsyncOpenAI
-import os
+
+from app.core.clients import openai_client
 
 from app.ai.ask import build_context
 from app.ai.prompts import SYSTEM_PROMPT_EXPLAIN
@@ -28,8 +28,7 @@ async def generate_explanation(concept: str, lecture_id: str, user_id: PydanticO
         concept=concept
     )
 
-    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    response = await client.chat.completions.create(
+    response = await openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2

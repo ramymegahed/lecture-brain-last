@@ -1,8 +1,9 @@
 import os
 import json
 from beanie import PydanticObjectId
-from openai import AsyncOpenAI
 from typing import List
+
+from app.core.clients import openai_client
 
 from app.models.lecture import Lecture
 from app.models.subject import Subject
@@ -26,8 +27,7 @@ async def generate_quiz(lecture_id: str, user_id: PydanticObjectId) -> QuizRespo
 
     prompt = SYSTEM_PROMPT_QUIZ.format(global_context=global_context)
 
-    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    response = await client.chat.completions.create(
+    response = await openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3
