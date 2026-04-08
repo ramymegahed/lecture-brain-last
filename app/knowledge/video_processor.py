@@ -1,7 +1,10 @@
 import os
 import asyncio
 import glob
+import logging
 from beanie import PydanticObjectId
+
+logger = logging.getLogger(__name__)
 import yt_dlp
 import whisper
 
@@ -26,9 +29,9 @@ def get_whisper_model() -> whisper.Whisper:
     """
     global _whisper_model
     if _whisper_model is None:
-        print("Loading Whisper 'small' model (first video upload)...")
+        logger.info("Loading Whisper 'small' model (first video upload)...")
         _whisper_model = whisper.load_model("small")
-        print("Whisper model ready.")
+        logger.info("Whisper model ready.")
     return _whisper_model
 
 
@@ -41,7 +44,7 @@ def sweep_orphaned_audio_files(upload_dir: str = "uploads") -> None:
     for orphan in glob.glob(pattern):
         try:
             os.remove(orphan)
-            print(f"Cleaned up orphaned audio file: {orphan}")
+            logger.info(f"Cleaned up orphaned audio file: {orphan}")
         except OSError:
             pass  # Already gone — ignore
 
@@ -137,7 +140,7 @@ async def process_video_background(lecture_id: str, url: str, extract_frames: bo
     """
     lecture = await Lecture.get(PydanticObjectId(lecture_id))
     if not lecture:
-        print(f"Lecture {lecture_id} not found during video processing.")
+        logger.error(f"Lecture {lecture_id} not found during video processing.")
         return
 
     try:
@@ -183,7 +186,7 @@ async def process_video_background(lecture_id: str, url: str, extract_frames: bo
         await lecture.save()
 
     except Exception as e:
-        print(f"Error processing video {url}: {e}")
+        logger.error(f"Error processing video {url}: {e}", exc_info=True)
         for source in lecture.sources:
             if source.url == url:
                 source.status = "failed"

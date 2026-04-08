@@ -1,7 +1,10 @@
 import json
+import logging
 from beanie import PydanticObjectId
 
 from app.core.clients import openai_client
+
+logger = logging.getLogger(__name__)
 
 from app.models.lecture import Lecture
 from app.models.knowledge_card import KnowledgeCard
@@ -76,6 +79,6 @@ async def generate_and_save_knowledge_card(lecture_id: str, document_text: str):
             return card
         
     except Exception as e:
-        print(f"Error generating knowledge card for Lecture {lecture_id}: {e}")
+        logger.error(f"Error generating knowledge card for Lecture {lecture_id}: {e}", exc_info=True)
         # In production handling is needed
         return None

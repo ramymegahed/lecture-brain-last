@@ -1,6 +1,9 @@
 from typing import List
+import logging
 
 from app.core.clients import openai_client
+
+logger = logging.getLogger(__name__)
 
 
 async def get_embeddings(texts: List[str]) -> List[List[float]]:
@@ -18,5 +21,5 @@ async def get_embeddings(texts: List[str]) -> List[List[float]]:
         )
         return [data.embedding for data in response.data]
     except Exception as e:
-        print(f"Error generating embeddings: {e}")
+        logger.error(f"Error generating embeddings: {e}")
         raise

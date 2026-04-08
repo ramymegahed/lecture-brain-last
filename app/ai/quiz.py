@@ -2,8 +2,11 @@ import os
 import json
 from beanie import PydanticObjectId
 from typing import List
+import logging
 
 from app.core.clients import openai_client
+
+logger = logging.getLogger(__name__)
 
 from app.models.lecture import Lecture
 from app.models.subject import Subject
@@ -56,6 +59,6 @@ async def generate_quiz(lecture_id: str, user_id: PydanticObjectId) -> QuizRespo
             
         return QuizResponse(lecture_id=lecture_id, questions=questions)
     except Exception as e:
-        print(f"Error parsing quiz JSON: {e}")
-        print(response.choices[0].message.content)
+        logger.error(f"Error parsing quiz JSON: {e}")
+        logger.debug(f"Raw response: {response.choices[0].message.content}")
         raise ValueError("Failed to generate quiz properly")

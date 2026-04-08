@@ -1,6 +1,9 @@
 import io
+import logging
 import fitz  # PyMuPDF
 from beanie import PydanticObjectId
+
+logger = logging.getLogger(__name__)
 
 from app.models.lecture import Lecture
 from app.models.knowledge import KnowledgeChunk
@@ -24,7 +27,7 @@ async def process_pdf_background(lecture_id: str, pdf_bytes: bytes):
     """
     lecture = await Lecture.get(PydanticObjectId(lecture_id))
     if not lecture:
-        print(f"Lecture {lecture_id} not found during processing.")
+        logger.error(f"Lecture {lecture_id} not found during processing.")
         return
 
     try:
@@ -75,7 +78,7 @@ async def process_pdf_background(lecture_id: str, pdf_bytes: bytes):
         await lecture.save()
 
     except Exception as e:
-        print(f"Error processing PDF for lecture {lecture_id}: {e}")
+        logger.error(f"Error processing PDF for lecture {lecture_id}: {e}", exc_info=True)
         for source in lecture.sources:
             if source.type == "pdf" and source.status == "processing":
                 source.status = "failed"

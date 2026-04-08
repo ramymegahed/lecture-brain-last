@@ -1,5 +1,8 @@
 import asyncio
+import logging
 from beanie import PydanticObjectId
+
+logger = logging.getLogger(__name__)
 
 from app.models.lecture import Lecture
 from app.models.knowledge import KnowledgeChunk
@@ -13,7 +16,7 @@ async def process_text_background(lecture_id: str, text: str):
     """
     lecture = await Lecture.get(PydanticObjectId(lecture_id))
     if not lecture:
-        print(f"Lecture {lecture_id} not found during processing.")
+        logger.error(f"Lecture {lecture_id} not found during processing.")
         return
 
     try:
@@ -54,7 +57,7 @@ async def process_text_background(lecture_id: str, text: str):
         await lecture.save()
 
     except Exception as e:
-        print(f"Error processing text for lecture {lecture_id}: {e}")
+        logger.error(f"Error processing text for lecture {lecture_id}: {e}", exc_info=True)
         for source in lecture.sources:
             if source.type == "text" and source.status == "processing":
                 source.status = "failed"
