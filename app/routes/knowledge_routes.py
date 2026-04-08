@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, status
 from beanie import PydanticObjectId
-import shutil
 import os
 
 from app.models.lecture import Lecture, LectureSource
@@ -9,15 +8,16 @@ from app.models.user import User
 from app.schemas.knowledge_schema import UploadResponse, UploadTextRequest, UploadVideoRequest
 from app.auth.dependencies import get_current_active_user
 
-# We will implement these in the app.knowledge module
 from app.knowledge.upload_pdf import process_pdf_background
 from app.knowledge.upload_text import process_text_background
 from app.knowledge.video_processor import process_video_background
 
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Ingestion"])
 
+# uploads/ directory is only needed for temporary video audio files (Whisper fallback)
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 
 @router.post("/upload_pdf/{lecture_id}", response_model=UploadResponse)
 async def upload_pdf(
@@ -33,20 +33,20 @@ async def upload_pdf(
     if not subject or str(subject.owner.ref.id) != str(current_user.id):
         raise HTTPException(status_code=404, detail="Lecture not found")
     lecture.subject = subject
-        
+
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported here")
 
-    file_location = f"{UPLOAD_DIR}/{lecture_id}_{file.filename}"
-    with open(file_location, "wb+") as file_object:
-        shutil.copyfileobj(file.file, file_object)
-        
-    lecture.sources.append(LectureSource(type="pdf", url=file_location, status="processing"))
+    # Read file into memory — no local disk write for PDFs
+    pdf_bytes = await file.read()
+
+    # Store source metadata (url is empty — file is not persisted)
+    lecture.sources.append(LectureSource(type="pdf", url="", status="processing"))
     lecture.status = "processing"
     await lecture.save()
 
-    # Pass to background task
-    background_tasks.add_task(process_pdf_background, lecture_id, file_location)
+    # Pass raw bytes to the background task
+    background_tasks.add_task(process_pdf_background, lecture_id, pdf_bytes)
 
     return UploadResponse(
         filename=file.filename,
