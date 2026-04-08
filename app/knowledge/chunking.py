@@ -1,19 +1,17 @@
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import re
+import bisect
 
 def clean_text(text: str) -> str:
     text = re.sub(r'\s+', ' ', text)       # collapse whitespace
     text = re.sub(r'\n{3,}', '\n\n', text) # max 2 newlines
     return text.strip()
 
-def recursive_character_text_splitter(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> List[str]:
+def recursive_character_text_splitter(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> List[Dict[str, any]]:
     """
     Simple recursive character text splitter.
-    Splits text by double newlines, then single newlines, then spaces.
+    Returns a list of dicts with 'text' and 'start_idx' (offset in the original string).
     """
-    # A simplified implementation for the structure.
-    # In production, using LangChain's RecursiveCharacterTextSplitter is recommended.
-    
     chunks = []
     start = 0
     text_length = len(text)
@@ -21,7 +19,10 @@ def recursive_character_text_splitter(text: str, chunk_size: int = 1000, chunk_o
     while start < text_length:
         end = start + chunk_size
         if end >= text_length:
-            chunks.append(text[start:text_length])
+            chunks.append({
+                "text": text[start:text_length],
+                "start_idx": start
+            })
             break
             
         # Try to find a good breaking point
@@ -32,26 +33,54 @@ def recursive_character_text_splitter(text: str, chunk_size: int = 1000, chunk_o
                 break_point = sep_idx + len(separator)
                 break
                 
-        chunks.append(text[start:break_point].strip())
+        chunks.append({
+            "text": text[start:break_point].strip(),
+            "start_idx": start
+        })
         start = break_point - chunk_overlap
         
     return chunks
 
 def chunk_document(pages: List[Dict[str, any]]) -> List[Dict[str, any]]:
     """
-    Takes a list of pages (dict with 'page_number' and 'text') and returns chunks
-    preserving the page number metadata.
+    Takes a list of pages (dict with 'page_number' and 'text').
+    Concatenates them to preserve cross-page context, chunks the full document,
+    and maps the resulting chunks back to their starting page numbers.
     """
-    document_chunks = []
+    if not pages:
+        return []
+
+    # 1. Concatenate all pages and track their character offsets
+    full_text = ""
+    page_offsets: List[Tuple[int, int]] = []  # List of (char_offset, page_number)
     
     for page in pages:
-        text_chunks = recursive_character_text_splitter(page['text'])
-        for chunk in text_chunks:
-            if chunk: # ignore empty
-                document_chunks.append({
-                    "text": chunk,
-                    "page_number": page['page_number']
-                })
+        current_offset = len(full_text)
+        page_offsets.append((current_offset, page['page_number']))
+        
+        # Add page text with a separator
+        page_text = page.get('text', '')
+        if page_text:
+            full_text += page_text + "\n\n"
+            
+    # 2. Split the full document
+    text_chunks = recursive_character_text_splitter(full_text)
+    offsets, page_numbers = zip(*page_offsets)
+    
+    document_chunks = []
+    for chunk in text_chunks:
+        if not chunk["text"]:
+            continue
+            
+        # Find which page this chunk starts in using bisect
+        # bisect_right minus 1 gives us the index of the largest offset less than or equal to start_idx
+        idx = bisect.bisect_right(offsets, chunk["start_idx"]) - 1
+        page_num = page_numbers[max(0, idx)]
+        
+        document_chunks.append({
+            "text": chunk["text"],
+            "page_number": page_num
+        })
                 
     return document_chunks
 
