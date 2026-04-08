@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, status, Query
 from beanie import PydanticObjectId
 import os
 
 from app.models.lecture import Lecture, LectureSource
+from app.models.knowledge import KnowledgeChunk
+from app.models.knowledge_card import KnowledgeCard
 from app.models.subject import Subject
 from app.models.user import User
 from app.schemas.knowledge_schema import UploadResponse, UploadTextRequest, UploadVideoRequest
@@ -24,6 +26,7 @@ async def upload_pdf(
     lecture_id: str,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    replace: bool = Query(False, description="Clear existing knowledge chunks and cards before processing"),
     current_user: User = Depends(get_current_active_user)
 ):
     lecture = await Lecture.get(PydanticObjectId(lecture_id))
@@ -36,6 +39,10 @@ async def upload_pdf(
 
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported here")
+
+    if replace:
+        await KnowledgeChunk.find(KnowledgeChunk.lecture_id == lecture_id).delete()
+        await KnowledgeCard.find(KnowledgeCard.lecture.id == PydanticObjectId(lecture_id)).delete()
 
     # Read file into memory — no local disk write for PDFs
     pdf_bytes = await file.read()
@@ -60,6 +67,7 @@ async def upload_video(
     lecture_id: str,
     request: UploadVideoRequest,
     background_tasks: BackgroundTasks,
+    replace: bool = Query(False, description="Clear existing knowledge chunks and cards before processing"),
     current_user: User = Depends(get_current_active_user)
 ):
     lecture = await Lecture.get(PydanticObjectId(lecture_id))
@@ -69,6 +77,10 @@ async def upload_video(
     if not subject or str(subject.owner.ref.id) != str(current_user.id):
         raise HTTPException(status_code=404, detail="Lecture not found")
     lecture.subject = subject
+        
+    if replace:
+        await KnowledgeChunk.find(KnowledgeChunk.lecture_id == lecture_id).delete()
+        await KnowledgeCard.find(KnowledgeCard.lecture.id == PydanticObjectId(lecture_id)).delete()
         
     lecture.sources.append(LectureSource(type="video", url=request.url, status="processing"))
     lecture.status = "processing"
@@ -96,6 +108,7 @@ async def upload_text(
     lecture_id: str,
     request: UploadTextRequest,
     background_tasks: BackgroundTasks,
+    replace: bool = Query(False, description="Clear existing knowledge chunks and cards before processing"),
     current_user: User = Depends(get_current_active_user)
 ):
     lecture = await Lecture.get(PydanticObjectId(lecture_id))
@@ -105,6 +118,10 @@ async def upload_text(
     if not subject or str(subject.owner.ref.id) != str(current_user.id):
         raise HTTPException(status_code=404, detail="Lecture not found")
     lecture.subject = subject
+        
+    if replace:
+        await KnowledgeChunk.find(KnowledgeChunk.lecture_id == lecture_id).delete()
+        await KnowledgeCard.find(KnowledgeCard.lecture.id == PydanticObjectId(lecture_id)).delete()
         
     lecture.sources.append(LectureSource(type="text", url="", status="processing"))
     lecture.status = "processing"

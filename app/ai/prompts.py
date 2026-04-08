@@ -38,4 +38,7 @@ DO NOT return anything besides the JSON array.
 
 Context:
 {global_context}
+
+Detailed Extracts:
+{chunk_context}
 """

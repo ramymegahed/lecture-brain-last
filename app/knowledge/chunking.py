@@ -54,3 +54,19 @@ def chunk_document(pages: List[Dict[str, any]]) -> List[Dict[str, any]]:
                 })
                 
     return document_chunks
+
+def sample_document_text(full_text: str, max_chars: int = 12000) -> str:
+    """
+    Instead of truncating to first N chars, take samples from
+    beginning (50%), middle (25%), and end (25%) of the document.
+    This gives the LLM a representative view of the full content.
+    """
+    n = len(full_text)
+    if n <= max_chars:
+        return full_text
+    
+    part_a = full_text[:max_chars // 2]                          # first 50%
+    part_b = full_text[n//2 - max_chars//8 : n//2 + max_chars//8]  # middle 25%
+    part_c = full_text[-(max_chars // 4):]                      # last 25%
+    
+    return f"{part_a}\n\n[...middle excerpt...]\n\n{part_b}\n\n[...end excerpt...]\n\n{part_c}"

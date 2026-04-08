@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 from app.models.lecture import Lecture
 from app.models.knowledge import KnowledgeChunk
-from app.knowledge.chunking import chunk_document, clean_text
+from app.knowledge.chunking import chunk_document, clean_text, sample_document_text
 from app.knowledge.embeddings import get_embeddings
 from app.knowledge.knowledge_card import generate_and_save_knowledge_card
 
@@ -66,7 +66,7 @@ async def process_pdf_background(lecture_id: str, pdf_bytes: bytes):
                 await KnowledgeChunk.insert_many(knowledge_chunks)
 
         # 6. Generate Knowledge Card from a representative sample of the text
-        sample_text = full_text[:15000]
+        sample_text = sample_document_text(full_text)
         await generate_and_save_knowledge_card(lecture_id, sample_text)
 
         # 7. Update status

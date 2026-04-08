@@ -13,6 +13,8 @@ from app.models.subject import Subject
 from app.models.knowledge_card import KnowledgeCard
 from app.ai.prompts import SYSTEM_PROMPT_QUIZ
 from app.schemas.ai_schema import QuizQuestion, QuizResponse, QuizOption
+from app.database.mongodb import vector_search
+from app.knowledge.embeddings import get_embeddings
 
 async def generate_quiz(lecture_id: str, user_id: PydanticObjectId) -> QuizResponse:
     lecture = await Lecture.get(PydanticObjectId(lecture_id))
@@ -28,7 +30,15 @@ async def generate_quiz(lecture_id: str, user_id: PydanticObjectId) -> QuizRespo
     if card:
         global_context = f"Summary: {card.summary}\nKey Points: {', '.join(card.key_points)}\nConcepts: {', '.join(card.concepts)}\nImportant Details: {', '.join(card.important_details)}"
 
-    prompt = SYSTEM_PROMPT_QUIZ.format(global_context=global_context)
+    # Fetch diverse chunks
+    query_vec = await get_embeddings(["main concepts, key points, and examples"])
+    chunk_text = ""
+    # Only fetch chunks if embeddings didn't fail
+    if query_vec:
+        chunks = await vector_search(query_vec[0], limit=10, lecture_id=lecture_id)
+        chunk_text = "\n".join([c.get("text", "") for c in chunks])
+
+    prompt = SYSTEM_PROMPT_QUIZ.format(global_context=global_context, chunk_context=chunk_text)
 
     response = await openai_client.chat.completions.create(
         model="gpt-4o-mini",

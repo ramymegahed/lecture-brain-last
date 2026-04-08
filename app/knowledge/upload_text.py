@@ -8,7 +8,7 @@ from app.models.lecture import Lecture
 from app.models.knowledge import KnowledgeChunk
 from app.knowledge.embeddings import get_embeddings
 from app.knowledge.knowledge_card import generate_and_save_knowledge_card
-from app.knowledge.chunking import chunk_document, clean_text
+from app.knowledge.chunking import chunk_document, clean_text, sample_document_text
 
 async def process_text_background(lecture_id: str, text: str):
     """
@@ -46,7 +46,7 @@ async def process_text_background(lecture_id: str, text: str):
             if knowledge_chunks:
                 await KnowledgeChunk.insert_many(knowledge_chunks)
 
-        sample_text = text[:15000]
+        sample_text = sample_document_text(text)
         await generate_and_save_knowledge_card(lecture_id, sample_text)
 
         for source in lecture.sources:
