@@ -436,3 +436,16 @@ During the stabilization phase, several of the critical and architectural issues
 *   **Smart Token Sampling**: Replaced the native `[:15000]` truncation with an intelligent `sample_document_text()` splitter that pulls 50% from the start, 25% from the middle, and 25% from the end (resolves #13).
 *   **Document-Level Chunking**: Updated `chunking.py` to concat all pages into a complete string to avoid severing sentences across page breaks, matching them back to the correct metadata using a mathematical `bisect` logic mapping array (resolves #7).
 *   **Re-Indexing Param**: Introduced an optional `?replace=true` query parameter for the ingestion endpoints allowing strict purging of prior chunks and cards (resolves #8).
+
+### Phase 4: Admin Analytics Architecture
+*   **Silent Telemetry (`ChatLog`)**: Embedded fire-and-forget hooks via `asyncio.create_task` during AI chat completions. Extracts the `subject_id` and raw question, logging it instantly without adding HTTP latency.
+*   **Batch Insight Generator**: Configured a manual Admin trigger (`/admin/analytics/generate`) which grabs chunks of `200` recent chats and feeds them to the LLM to identify "Weak Topics" and "Common Questions" across the entire student base segmenting by `subject`.
+
+### Phase 5: AI Presentation Generator
+*   **Consolidated Multi-Source RAG**: Built an endpoint that fetches a densely packed context using both the global `KnowledgeCard` summary and a wide `$vectorSearch` (15 top chunks) to synthesize a standalone JSON Keynote slide deck. Because all chunks across all PDFs and Videos map to the same `lecture_id`, the generated slides natively consolidate *everything* uploaded to that subject.
+*   **Native Caching**: Introduced a `Presentation` Beanie model to store generated slides directly in MongoDB, rendering sub-second fetch speeds immediately after the initial 15s generation. Added `?force_regenerate=true` for on-demand resets.
+
+### Phase 6: Admin Operations Monitoring
+*   **Embedded `JobTracker`**: Added a native tracker inside the `Lecture` model representing linear pipeline progress (`upload`, `extraction`, `chunking`, `embedding`, `card_generation`).
+*   **Pipeline Pingers**: Injected asynchronous update hooks linearly throughout the heavy PyMuPDF and yt-dlp/Whisper workflows. Any system failure is gracefully caught, setting the step to `failed` and passing the raw `error_traceback` string upwards.
+*   **HTTP Poller Route**: Built `GET /admin/operations` cleanly returning the `JobTracker` matrix for all lectures sorted by recency. Designed specifically for UI dashboards to poll every 3 seconds for instantaneous feedback, avoiding WebSocket scaling overhead.

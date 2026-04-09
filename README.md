@@ -68,6 +68,14 @@ The Inference Engine then enables students to chat with the material, ask for co
 - **GET `/ai/summary/{lecture_id}`**: Get the structured Knowledge Card summary.
 - **POST `/ai/quiz/{lecture_id}`**: Generate a 5-question multiple choice quiz.
 
+### 5. Admin & Analytics
+*(Require `Admin-Key` Header or `ADMIN_SECRET`)*
+
+- **POST `/admin/analytics/generate`**: Processes all recent ChatLogs to generate LLM insights for all subjects (Weak Topics, Confusing Concepts, Common Questions).
+- **GET `/admin/analytics`**: Returns the `SubjectAnalytics` data formatted for an Admin Dashboard.
+- **GET `/admin/operations`**: Returns the `JobTracker` status matrix for all lectures (extraction, chunking, embedding, etc.) to drive real-time dashboard progress bars.
+- **GET `/admin/presentation/{lecture_id}`**: Auto-generates a consolidated JSON slide presentation by running `$vectorSearch` and merging all Document/Video sources uploaded to a lecture.
+
 ---
 
 ## Running Locally (Without Docker)
