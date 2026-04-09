@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 
@@ -36,3 +35,14 @@ class AdminLectureOperationsResponse(BaseModel):
     status: str
     job_tracker: JobTrackerResponse
     created_at: datetime
+
+class AdminUploadVideoRequest(BaseModel):
+    lecture_id: Optional[str] = None
+    url: str
+    extract_frames: bool = False
+
+class AdminUploadResponse(BaseModel):
+    lecture_id: str
+    status: str
+    message: str
+    warning: Optional[str] = None
