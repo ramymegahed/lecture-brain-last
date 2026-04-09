@@ -449,3 +449,9 @@ During the stabilization phase, several of the critical and architectural issues
 *   **Embedded `JobTracker`**: Added a native tracker inside the `Lecture` model representing linear pipeline progress (`upload`, `extraction`, `chunking`, `embedding`, `card_generation`).
 *   **Pipeline Pingers**: Injected asynchronous update hooks linearly throughout the heavy PyMuPDF and yt-dlp/Whisper workflows. Any system failure is gracefully caught, setting the step to `failed` and passing the raw `error_traceback` string upwards.
 *   **HTTP Poller Route**: Built `GET /admin/operations` cleanly returning the `JobTracker` matrix for all lectures sorted by recency. Designed specifically for UI dashboards to poll every 3 seconds for instantaneous feedback, avoiding WebSocket scaling overhead.
+
+### Phase 7: Unified Admin Flow
+*   **System Account Anchor**: A backend helper automatically seeds a `admin@lecturebrain.com` User and a "System Architecture Presentations" Subject in MongoDB. This preserves the relational constraints (Lecture → Subject → User) and keeps the database fully stable.
+*   **Dedicated Admin Uploads**: New endpoints `POST /admin/upload_pdf` and `POST /admin/upload_video` only require `ADMIN_SECRET`, meaning no JWT or student login is needed.
+*   **Autonomous Lecture Creation**: Uploading a file without a `lecture_id` automatically creates a new Lecture container and returns the new `lecture_id` immediately. Subsequent uploads can pass this `lecture_id` to merge sources into the same Lecture.
+*   **Full Admin Flow**: The complete flow—Upload → Operations Polling → Presentation Generation—is now fully executable with the `ADMIN_SECRET` alone. No manual triggers, JWTs, or extra steps needed.
