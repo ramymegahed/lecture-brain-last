@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from app.schemas.ai_schema import ChatRequest, ChatResponse, ExplainRequest, ExplainResponse, SummaryResponse, QuizResponse, PresentationResponse
+from fastapi import APIRouter, Depends, HTTPException
+from app.schemas.ai_schema import ChatRequest, ChatResponse, ExplainRequest, ExplainResponse, SummaryResponse, QuizResponse
 from app.models.user import User
 from app.auth.dependencies import get_current_active_user
 
@@ -8,7 +8,6 @@ from app.ai.ask import generate_answer
 from app.ai.explain import generate_explanation
 from app.ai.summary import get_lecture_summary
 from app.ai.quiz import generate_quiz
-from app.ai.presentation import generate_presentation
 
 router = APIRouter(prefix="/ai", tags=["AI Inference"])
 
@@ -65,22 +64,3 @@ async def create_quiz(
         return await generate_quiz(lecture_id, current_user.id)
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
-
-@router.get("/presentation/{lecture_id}", response_model=PresentationResponse)
-async def create_presentation(
-    lecture_id: str,
-    force_regenerate: bool = Query(False, description="Set to true to ignore the cache and generate a new deck"),
-    current_user: User = Depends(get_current_active_user)
-):
-    try:
-        presentation_doc = await generate_presentation(lecture_id, force_regenerate)
-        
-        return PresentationResponse(
-            lecture_id=lecture_id,
-            presentation_title=presentation_doc.presentation_title,
-            slides=[s.model_dump() for s in presentation_doc.slides]
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate presentation: {str(e)}")

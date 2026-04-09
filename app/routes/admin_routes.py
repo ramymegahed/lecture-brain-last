@@ -1,10 +1,12 @@
 import os
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from app.schemas.admin_schema import SubjectAnalyticsResponse, AnalyticsTriggerResponse, AdminLectureOperationsResponse
+from app.schemas.ai_schema import PresentationResponse
 from app.models.subject_analytics import SubjectAnalytics
 from app.models.lecture import Lecture
 from app.ai.analytics import generate_subject_analytics
+from app.ai.presentation import generate_presentation
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -49,6 +51,28 @@ async def get_all_analytics():
         ))
         
     return response
+
+@router.get("/presentation/{lecture_id}", response_model=PresentationResponse, dependencies=[Depends(require_admin)])
+async def create_presentation(
+    lecture_id: str,
+    force_regenerate: bool = Query(False, description="Set to true to ignore the cache and generate a new deck")
+):
+    """
+    Auto-generates a slide deck presentation using RAG from all sources uploaded to the lecture.
+    Only accessible by administrators.
+    """
+    try:
+        presentation_doc = await generate_presentation(lecture_id, force_regenerate)
+        
+        return PresentationResponse(
+            lecture_id=lecture_id,
+            presentation_title=presentation_doc.presentation_title,
+            slides=[s.model_dump() for s in presentation_doc.slides]
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate presentation: {str(e)}")
 
 @router.get("/operations", response_model=List[AdminLectureOperationsResponse], dependencies=[Depends(require_admin)])
 async def get_admin_operations():
