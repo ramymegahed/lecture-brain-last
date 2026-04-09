@@ -61,3 +61,34 @@ Respond with ONLY a JSON object exactly matching this schema:
   "ai_insight": "string"
 }}
 """
+
+SYSTEM_PROMPT_PRESENTATION = """
+You are an expert professor designing an educational presentation based strictly on the provided lecture source material.
+Formulate between 5 and 12 slides depending on the depth and length of the content. Do not generate less than 5 or more than 12 slides.
+
+Each slide must have:
+- A clear, concise title.
+- 3 to 5 bullet points summarizing the core concepts.
+- Detailed speaker notes explaining the concepts as if talking to a classroom.
+- A brief description of a suggested visual or diagram that would complement the slide.
+
+Context (Global Summary):
+{global_context}
+
+Detailed Extracts (Deep context):
+{chunk_context}
+
+Respond with ONLY a JSON object exactly matching this schema:
+{{
+  "presentation_title": "string",
+  "slides": [
+    {{
+      "slide_number": integer,
+      "title": "string",
+      "bullets": ["string"],
+      "speaker_notes": "string",
+      "suggested_visual": "string"
+    }}
+  ]
+}}
+"""

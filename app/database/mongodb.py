@@ -11,6 +11,7 @@ from app.models.knowledge import KnowledgeChunk
 from app.models.knowledge_card import KnowledgeCard
 from app.models.chat_log import ChatLog
 from app.models.subject_analytics import SubjectAnalytics
+from app.models.presentation import Presentation
 
 load_dotenv()
 
@@ -39,7 +40,8 @@ async def init_db():
             KnowledgeChunk,
             KnowledgeCard,
             ChatLog,
-            SubjectAnalytics
+            SubjectAnalytics,
+            Presentation
         ]
     )
 

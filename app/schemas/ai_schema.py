@@ -42,3 +42,15 @@ class QuizQuestion(BaseModel):
 class QuizResponse(BaseModel):
     lecture_id: str
     questions: List[QuizQuestion]
+
+class SlideResponse(BaseModel):
+    slide_number: int
+    title: str
+    bullets: List[str]
+    speaker_notes: str
+    suggested_visual: str
+
+class PresentationResponse(BaseModel):
+    lecture_id: str
+    presentation_title: str
+    slides: List[SlideResponse]
