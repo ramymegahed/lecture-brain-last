@@ -16,6 +16,7 @@ from app.routes.subject_routes import router as subject_router
 from app.routes.lecture_routes import router as lecture_router
 from app.routes.knowledge_routes import router as knowledge_router
 from app.routes.ai_routes import router as ai_router
+from app.routes.admin_routes import router as admin_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,6 +47,7 @@ app.include_router(subject_router)
 app.include_router(lecture_router)
 app.include_router(knowledge_router)
 app.include_router(ai_router)
+app.include_router(admin_router)
 
 @app.get("/")
 async def root():

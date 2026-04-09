@@ -9,6 +9,8 @@ from app.models.subject import Subject
 from app.models.lecture import Lecture
 from app.models.knowledge import KnowledgeChunk
 from app.models.knowledge_card import KnowledgeCard
+from app.models.chat_log import ChatLog
+from app.models.subject_analytics import SubjectAnalytics
 
 load_dotenv()
 
@@ -35,7 +37,9 @@ async def init_db():
             Subject,
             Lecture,
             KnowledgeChunk,
-            KnowledgeCard
+            KnowledgeCard,
+            ChatLog,
+            SubjectAnalytics
         ]
     )
 

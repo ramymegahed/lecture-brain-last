@@ -1,5 +1,6 @@
 from typing import Tuple, List
 from beanie import PydanticObjectId
+import asyncio
 
 from app.core.clients import openai_client
 
@@ -8,6 +9,7 @@ from app.knowledge.embeddings import get_embeddings
 from app.models.knowledge_card import KnowledgeCard
 from app.models.lecture import Lecture
 from app.models.subject import Subject
+from app.models.chat_log import ChatLog
 from app.ai.prompts import SYSTEM_PROMPT_ASK
 
 async def build_context(lecture_id: str, query: str) -> Tuple[str, str, List[str]]:
@@ -42,6 +44,20 @@ async def build_context(lecture_id: str, query: str) -> Tuple[str, str, List[str
 
     return global_context, retrieved_chunks, sources
 
+async def _save_chat_log(lecture: Lecture, message: str, answer: str):
+    """Fire and forget save. Fails silently so user experience is not impacted."""
+    try:
+        log = ChatLog(
+            lecture=lecture,
+            lecture_id=str(lecture.id),
+            subject_id=str(lecture.subject.ref.id),
+            question=message,
+            answer=answer,
+        )
+        await log.insert()
+    except Exception:
+        pass
+
 async def generate_answer(message: str, lecture_id: str, user_id: PydanticObjectId, history: List[dict] = None) -> Tuple[str, List[str]]:
     """
     Generate an answer to the student's question using RAG and optional chat history.
@@ -73,4 +89,8 @@ async def generate_answer(message: str, lecture_id: str, user_id: PydanticObject
     )
     
     answer = response.choices[0].message.content
+    
+    # Non-blocking analytics logging
+    asyncio.create_task(_save_chat_log(lecture, message, answer))
+    
     return answer, sources
