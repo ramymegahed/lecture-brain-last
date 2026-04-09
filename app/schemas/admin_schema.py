@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel
+from typing import List, Optional
 from datetime import datetime
 
 class WeakTopicResponse(BaseModel):
@@ -20,3 +21,18 @@ class AnalyticsTriggerResponse(BaseModel):
     subjects_processed: int
     total_messages_analyzed: int
     message: str
+
+class JobTrackerResponse(BaseModel):
+    upload_status: str
+    extraction_status: str
+    chunking_status: str
+    embedding_status: str
+    card_generation_status: str
+    error_traceback: Optional[str] = None
+
+class AdminLectureOperationsResponse(BaseModel):
+    lecture_id: str
+    title: str
+    status: str
+    job_tracker: JobTrackerResponse
+    created_at: datetime

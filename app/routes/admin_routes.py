@@ -1,8 +1,9 @@
 import os
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Header
-from app.schemas.admin_schema import SubjectAnalyticsResponse, AnalyticsTriggerResponse
+from app.schemas.admin_schema import SubjectAnalyticsResponse, AnalyticsTriggerResponse, AdminLectureOperationsResponse
 from app.models.subject_analytics import SubjectAnalytics
+from app.models.lecture import Lecture
 from app.ai.analytics import generate_subject_analytics
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -45,6 +46,27 @@ async def get_all_analytics():
             engagement_count=a.engagement_count,
             ai_insight=a.ai_insight,
             last_analyzed_at=a.last_analyzed_at
+        ))
+        
+    return response
+
+@router.get("/operations", response_model=List[AdminLectureOperationsResponse], dependencies=[Depends(require_admin)])
+async def get_admin_operations():
+    """
+    Returns the processing status of all uploaded lectures for dashboard observability.
+    Intended to be polled periodically by the frontend.
+    """
+    # Fetch all lectures, sorted by newest first
+    lectures = await Lecture.find_all().sort("-created_at").to_list()
+    
+    response = []
+    for l in lectures:
+        response.append(AdminLectureOperationsResponse(
+            lecture_id=str(l.id),
+            title=l.title,
+            status=l.status,
+            job_tracker=l.job_tracker,
+            created_at=l.created_at
         ))
         
     return response

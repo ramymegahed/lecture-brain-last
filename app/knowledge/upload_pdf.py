@@ -5,7 +5,7 @@ from beanie import PydanticObjectId
 
 logger = logging.getLogger(__name__)
 
-from app.models.lecture import Lecture
+from app.models.lecture import Lecture, update_job_status
 from app.models.knowledge import KnowledgeChunk
 from app.knowledge.chunking import chunk_document, clean_text, sample_document_text
 from app.knowledge.embeddings import get_embeddings
@@ -31,6 +31,8 @@ async def process_pdf_background(lecture_id: str, pdf_bytes: bytes):
         return
 
     try:
+        await update_job_status(lecture_id, "upload_status", "completed")
+        await update_job_status(lecture_id, "extraction_status", "processing")
         # 1 & 2. Open from bytes — PyMuPDF accepts a bytes stream directly
         doc = fitz.open(stream=io.BytesIO(pdf_bytes), filetype="pdf")
         pages = []
@@ -41,11 +43,15 @@ async def process_pdf_background(lecture_id: str, pdf_bytes: bytes):
             full_text += text + "\n"
             pages.append({"page_number": page_num + 1, "text": text})
         doc.close()
+        await update_job_status(lecture_id, "extraction_status", "completed")
 
         # 3. Chunk text (preserving page numbers)
+        await update_job_status(lecture_id, "chunking_status", "processing")
         chunks = chunk_document(pages)
+        await update_job_status(lecture_id, "chunking_status", "completed")
 
         # 4 & 5. Embed and save in batches of 100
+        await update_job_status(lecture_id, "embedding_status", "processing")
         BATCH_SIZE = 100
         for i in range(0, len(chunks), BATCH_SIZE):
             batch = chunks[i:i + BATCH_SIZE]
@@ -64,10 +70,13 @@ async def process_pdf_background(lecture_id: str, pdf_bytes: bytes):
             ]
             if knowledge_chunks:
                 await KnowledgeChunk.insert_many(knowledge_chunks)
+        await update_job_status(lecture_id, "embedding_status", "completed")
 
         # 6. Generate Knowledge Card from a representative sample of the text
+        await update_job_status(lecture_id, "card_generation_status", "processing")
         sample_text = sample_document_text(full_text)
         await generate_and_save_knowledge_card(lecture_id, sample_text)
+        await update_job_status(lecture_id, "card_generation_status", "completed")
 
         # 7. Update status
         for source in lecture.sources:
@@ -79,6 +88,8 @@ async def process_pdf_background(lecture_id: str, pdf_bytes: bytes):
 
     except Exception as e:
         logger.error(f"Error processing PDF for lecture {lecture_id}: {e}", exc_info=True)
+        # Catch-all status update for failure
+        await update_job_status(lecture_id, "extraction_status", "failed", error=str(e))
         for source in lecture.sources:
             if source.type == "pdf" and source.status == "processing":
                 source.status = "failed"

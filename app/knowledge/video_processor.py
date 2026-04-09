@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 import yt_dlp
 import whisper
 
-from app.models.lecture import Lecture
+from app.models.lecture import Lecture, update_job_status
 from app.models.knowledge import KnowledgeChunk
 from app.knowledge.chunking import chunk_document, clean_text, sample_document_text
 from app.knowledge.embeddings import get_embeddings
@@ -144,17 +144,24 @@ async def process_video_background(lecture_id: str, url: str, extract_frames: bo
         return
 
     try:
+        await update_job_status(lecture_id, "upload_status", "completed")
+        await update_job_status(lecture_id, "extraction_status", "processing")
         # 1 & 2: Download and transcribe in a thread (blocking operation)
         text = await asyncio.to_thread(_download_and_transcribe, url, lecture_id)
 
         if not text.strip():
             raise ValueError("Transcription returned empty text.")
 
+        await update_job_status(lecture_id, "extraction_status", "completed")
+
         # 3. Chunk & Embed
+        await update_job_status(lecture_id, "chunking_status", "processing")
         cleaned_text = clean_text(text)
         pages = [{"page_number": 1, "text": cleaned_text}]
         chunks = chunk_document(pages)
+        await update_job_status(lecture_id, "chunking_status", "completed")
 
+        await update_job_status(lecture_id, "embedding_status", "processing")
         BATCH_SIZE = 100
         for i in range(0, len(chunks), BATCH_SIZE):
             batch = chunks[i:i + BATCH_SIZE]
@@ -173,10 +180,13 @@ async def process_video_background(lecture_id: str, url: str, extract_frames: bo
             ]
             if knowledge_chunks:
                 await KnowledgeChunk.insert_many(knowledge_chunks)
+        await update_job_status(lecture_id, "embedding_status", "completed")
 
         # 4. Generate Knowledge Card
+        await update_job_status(lecture_id, "card_generation_status", "processing")
         sample_text = sample_document_text(text)
         await generate_and_save_knowledge_card(lecture_id, sample_text)
+        await update_job_status(lecture_id, "card_generation_status", "completed")
 
         # 5. Update status
         for source in lecture.sources:
@@ -187,6 +197,7 @@ async def process_video_background(lecture_id: str, url: str, extract_frames: bo
 
     except Exception as e:
         logger.error(f"Error processing video {url}: {e}", exc_info=True)
+        await update_job_status(lecture_id, "extraction_status", "failed", error=str(e))
         for source in lecture.sources:
             if source.url == url:
                 source.status = "failed"
