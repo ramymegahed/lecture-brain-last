@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from typing import Annotated
 
-from app.schemas.auth_schema import UserCreate, UserResponse, Token
+from app.schemas.auth_schema import UserCreate, UserResponse, Token, LoginResponse
 from app.models.user import User
 from app.auth.jwt import get_password_hash, verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from app.auth.dependencies import get_current_active_user
@@ -22,7 +22,7 @@ async def register(user_in: UserCreate):
     
     return UserResponse(id=str(new_user.id), email=new_user.email, role=new_user.role, is_active=new_user.is_active)
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=LoginResponse)
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     user = await User.find_one(User.email == form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
@@ -35,7 +35,17 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    user_data = UserResponse(
+        id=str(user.id),
+        email=user.email,
+        role=user.role,
+        is_active=user.is_active
+    )
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "user": user_data
+    }
 
 @router.get("/me", response_model=UserResponse)
 async def read_users_me(current_user: Annotated[User, Depends(get_current_active_user)]):
