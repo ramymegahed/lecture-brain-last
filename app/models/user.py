@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 class User(Document):
     email: Indexed(EmailStr, unique=True)
     hashed_password: str
+    role: str = "user"
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

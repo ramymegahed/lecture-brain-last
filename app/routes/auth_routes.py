@@ -20,7 +20,7 @@ async def register(user_in: UserCreate):
     new_user = User(email=user_in.email, hashed_password=hashed_password)
     await new_user.insert()
     
-    return UserResponse(id=str(new_user.id), email=new_user.email, is_active=new_user.is_active)
+    return UserResponse(id=str(new_user.id), email=new_user.email, role=new_user.role, is_active=new_user.is_active)
 
 @router.post("/login", response_model=Token)
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
@@ -39,4 +39,4 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
 
 @router.get("/me", response_model=UserResponse)
 async def read_users_me(current_user: Annotated[User, Depends(get_current_active_user)]):
-    return UserResponse(id=str(current_user.id), email=current_user.email, is_active=current_user.is_active)
+    return UserResponse(id=str(current_user.id), email=current_user.email, role=current_user.role, is_active=current_user.is_active)

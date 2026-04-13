@@ -19,6 +19,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: str  # beanie id representation
     email: EmailStr
+    role: str
     is_active: bool
 
     class Config:

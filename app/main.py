@@ -17,11 +17,13 @@ from app.routes.lecture_routes import router as lecture_router
 from app.routes.knowledge_routes import router as knowledge_router
 from app.routes.ai_routes import router as ai_router
 from app.routes.admin_routes import router as admin_router
+from app.auth.init_admin import create_initial_admin
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     await init_db()
+    await create_initial_admin()
     sweep_orphaned_audio_files()  # Clean any MP3s left by a previous crash
     yield
     # Shutdown

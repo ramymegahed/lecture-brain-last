@@ -18,16 +18,11 @@ from app.ai.analytics import generate_subject_analytics
 from app.ai.presentation import generate_presentation
 from app.knowledge.upload_pdf import process_pdf_background
 from app.knowledge.video_processor import process_video_background
+from app.auth.dependencies import get_current_admin_user
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
-async def require_admin(x_admin_key: str = Header(...)):
-    """Simple shared-secret auth for demo purposes."""
-    expected_key = os.getenv("ADMIN_SECRET", "super-secret-admin-key")
-    if x_admin_key != expected_key:
-        raise HTTPException(status_code=403, detail="Invalid admin key")
-
-@router.post("/analytics/generate", response_model=AnalyticsTriggerResponse, dependencies=[Depends(require_admin)])
+@router.post("/analytics/generate", response_model=AnalyticsTriggerResponse, dependencies=[Depends(get_current_admin_user)])
 async def trigger_analytics_generation():
     """
     Manually triggers batch LLM analysis of all unanalyzed chat logs 
@@ -39,7 +34,7 @@ async def trigger_analytics_generation():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate analytics: {str(e)}")
 
-@router.get("/analytics", response_model=List[SubjectAnalyticsResponse], dependencies=[Depends(require_admin)])
+@router.get("/analytics", response_model=List[SubjectAnalyticsResponse], dependencies=[Depends(get_current_admin_user)])
 async def get_all_analytics():
     """
     Returns the most recent analytics dashboard data for all subjects.
@@ -63,7 +58,7 @@ async def get_all_analytics():
         
     return response
 
-@router.get("/presentation/{lecture_id}", response_model=PresentationResponse, dependencies=[Depends(require_admin)])
+@router.get("/presentation/{lecture_id}", response_model=PresentationResponse, dependencies=[Depends(get_current_admin_user)])
 async def create_presentation(
     lecture_id: str,
     force_regenerate: bool = Query(False, description="Set to true to ignore the cache and generate a new deck")
@@ -87,10 +82,10 @@ async def create_presentation(
 
 async def get_or_create_admin_subject() -> Subject:
     """Creates a unified System Admin account and Subject to anchor orphaned admin objects."""
-    admin_user = await User.find_one(User.email == "admin@lecturebrain.com")
+    admin_email = os.getenv("FIRST_SUPERUSER_EMAIL", "admin@lecturebrain.com")
+    admin_user = await User.find_one(User.email == admin_email)
     if not admin_user:
-        admin_user = User(email="admin@lecturebrain.com", hashed_password="N/A")
-        await admin_user.insert()
+        raise HTTPException(status_code=500, detail="Default admin account missing. Run initial setup.")
     
     admin_subject = await Subject.find_one(Subject.name == "System Architecture Presentations")
     if not admin_subject:
@@ -99,7 +94,7 @@ async def get_or_create_admin_subject() -> Subject:
     
     return admin_subject
 
-@router.post("/upload_pdf", response_model=AdminUploadResponse, dependencies=[Depends(require_admin)])
+@router.post("/upload_pdf", response_model=AdminUploadResponse, dependencies=[Depends(get_current_admin_user)])
 async def admin_upload_pdf(
     background_tasks: BackgroundTasks,
     lecture_id: Optional[str] = Form(None),
@@ -141,7 +136,7 @@ async def admin_upload_pdf(
         message="PDF upload successful, processing natively in background."
     )
 
-@router.post("/upload_video", response_model=AdminUploadResponse, dependencies=[Depends(require_admin)])
+@router.post("/upload_video", response_model=AdminUploadResponse, dependencies=[Depends(get_current_admin_user)])
 async def admin_upload_video(
     request: AdminUploadVideoRequest,
     background_tasks: BackgroundTasks
@@ -182,7 +177,7 @@ async def admin_upload_video(
         warning=warning
     )
 
-@router.get("/operations", response_model=List[AdminLectureOperationsResponse], dependencies=[Depends(require_admin)])
+@router.get("/operations", response_model=List[AdminLectureOperationsResponse], dependencies=[Depends(get_current_admin_user)])
 async def get_admin_operations():
     """
     Returns the processing status of all uploaded lectures for dashboard observability.
