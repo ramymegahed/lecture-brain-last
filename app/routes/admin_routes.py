@@ -188,11 +188,14 @@ async def get_admin_operations():
     
     response = []
     for l in lectures:
+        # Convert nested Beanie Pydantic model to dictionary for the response validator
+        job_tracker_data = l.job_tracker.model_dump() if l.job_tracker else {}
+        
         response.append(AdminLectureOperationsResponse(
             lecture_id=str(l.id),
             title=l.title,
             status=l.status,
-            job_tracker=l.job_tracker,
+            job_tracker=job_tracker_data,
             created_at=l.created_at
         ))
         
