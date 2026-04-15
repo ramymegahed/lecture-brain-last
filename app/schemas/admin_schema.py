@@ -16,6 +16,12 @@ class SubjectAnalyticsResponse(BaseModel):
     ai_insight: str
     last_analyzed_at: datetime
 
+class SystemAnalyticsResponse(BaseModel):
+    total_subjects: int
+    total_lectures: int
+    completion_rate: float
+    ai_interactions: int
+
 class AnalyticsTriggerResponse(BaseModel):
     subjects_processed: int
     total_messages_analyzed: int
@@ -31,8 +37,9 @@ class JobTrackerResponse(BaseModel):
 
 class AdminLectureOperationsResponse(BaseModel):
     lecture_id: str
-    title: str
-    status: str
+    lecture_name: str
+    subject_name: str
+    ingestion_status: str
     job_tracker: JobTrackerResponse
     created_at: datetime
 

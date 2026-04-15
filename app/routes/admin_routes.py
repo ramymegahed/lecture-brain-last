@@ -5,7 +5,7 @@ from beanie import PydanticObjectId
 from datetime import datetime
 
 from app.schemas.admin_schema import (
-    SubjectAnalyticsResponse, AnalyticsTriggerResponse, 
+    SubjectAnalyticsResponse, AnalyticsTriggerResponse, SystemAnalyticsResponse,
     AdminLectureOperationsResponse, AdminUploadResponse, AdminUploadVideoRequest
 )
 from app.schemas.ai_schema import PresentationResponse
@@ -13,6 +13,7 @@ from app.models.subject_analytics import SubjectAnalytics
 from app.models.lecture import Lecture, LectureSource
 from app.models.subject import Subject
 from app.models.user import User
+from app.models.chat_log import ChatLog
 
 from app.ai.analytics import generate_subject_analytics
 from app.ai.presentation import generate_presentation
@@ -34,29 +35,25 @@ async def trigger_analytics_generation():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate analytics: {str(e)}")
 
-@router.get("/analytics", response_model=List[SubjectAnalyticsResponse], dependencies=[Depends(get_current_admin_user)])
-async def get_all_analytics():
+@router.get("/analytics", response_model=SystemAnalyticsResponse, dependencies=[Depends(get_current_admin_user)])
+async def get_system_analytics():
     """
-    Returns the most recent analytics dashboard data for all subjects.
+    Returns high-level system analytics for the admin dashboard.
     """
-    analytics = await SubjectAnalytics.find_all().to_list()
+    total_subjects = await Subject.count()
+    total_lectures = await Lecture.count()
     
-    response = []
-    for a in analytics:
-        weak_topics = [{"topic": wt.topic, "frequency_score": wt.frequency_score} for wt in a.weak_topics]
-        
-        response.append(SubjectAnalyticsResponse(
-            subject_id=a.subject_id,
-            subject_name=a.subject_name,
-            weak_topics=weak_topics,
-            common_questions=a.common_questions,
-            confusing_concepts=a.confusing_concepts,
-            engagement_count=a.engagement_count,
-            ai_insight=a.ai_insight,
-            last_analyzed_at=a.last_analyzed_at
-        ))
-        
-    return response
+    ready_lectures = await Lecture.find({"status": "ready"}).count()
+    completion_rate = (ready_lectures / total_lectures * 100) if total_lectures > 0 else 0.0
+    
+    ai_interactions = await ChatLog.count()
+    
+    return SystemAnalyticsResponse(
+        total_subjects=total_subjects,
+        total_lectures=total_lectures,
+        completion_rate=round(completion_rate, 2),
+        ai_interactions=ai_interactions
+    )
 
 @router.get("/presentation/{lecture_id}", response_model=PresentationResponse, dependencies=[Depends(get_current_admin_user)])
 async def create_presentation(
@@ -183,18 +180,20 @@ async def get_admin_operations():
     Returns the processing status of all uploaded lectures for dashboard observability.
     Intended to be polled periodically by the frontend.
     """
-    # Fetch all lectures, sorted by newest first
-    lectures = await Lecture.find_all().sort("-created_at").to_list()
+    # Fetch all lectures, sorted by newest first, and fetch linked subjects
+    lectures = await Lecture.find_all(fetch_links=True).sort("-created_at").to_list()
     
     response = []
     for l in lectures:
+        subject_name = l.subject.name if l.subject else "Unknown"
         # Convert nested Beanie Pydantic model to dictionary for the response validator
         job_tracker_data = l.job_tracker.model_dump() if l.job_tracker else {}
         
         response.append(AdminLectureOperationsResponse(
             lecture_id=str(l.id),
-            title=l.title,
-            status=l.status,
+            lecture_name=l.title,
+            subject_name=subject_name,
+            ingestion_status=l.status,
             job_tracker=job_tracker_data,
             created_at=l.created_at
         ))
