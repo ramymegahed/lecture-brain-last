@@ -55,6 +55,27 @@ async def get_system_analytics():
         ai_interactions=ai_interactions
     )
 
+@router.get("/analytics/insights", response_model=List[SubjectAnalyticsResponse], dependencies=[Depends(get_current_admin_user)])
+async def get_analytics_insights():
+    """
+    Returns the deep AI-generated insights for all subjects.
+    This feeds the 'Smart Insights' or 'AI Analysis' cards on the admin dashboard.
+    """
+    insights = await SubjectAnalytics.find_all().to_list()
+    
+    return [
+        SubjectAnalyticsResponse(
+            subject_id=i.subject_id,
+            subject_name=i.subject_name,
+            weak_topics=[{"topic": t.topic, "frequency_score": t.frequency_score} for t in i.weak_topics],
+            common_questions=i.common_questions,
+            confusing_concepts=i.confusing_concepts,
+            engagement_count=i.engagement_count,
+            ai_insight=i.ai_insight,
+            last_analyzed_at=i.last_analyzed_at
+        ) for i in insights
+    ]
+
 @router.get("/presentation/{lecture_id}", response_model=PresentationResponse, dependencies=[Depends(get_current_admin_user)])
 async def create_presentation(
     lecture_id: str,
