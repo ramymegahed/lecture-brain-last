@@ -17,3 +17,4 @@ email-validator
 yt-dlp
 openai-whisper
 numpy<2.0.0
+slowapi

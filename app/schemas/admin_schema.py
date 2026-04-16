@@ -28,11 +28,11 @@ class AnalyticsTriggerResponse(BaseModel):
     message: str
 
 class JobTrackerResponse(BaseModel):
-    upload_status: str
-    extraction_status: str
-    chunking_status: str
-    embedding_status: str
-    card_generation_status: str
+    upload_status: Optional[str] = None
+    extraction_status: Optional[str] = None
+    chunking_status: Optional[str] = None
+    embedding_status: Optional[str] = None
+    card_generation_status: Optional[str] = None
     error_traceback: Optional[str] = None
 
 class AdminLectureOperationsResponse(BaseModel):
@@ -40,7 +40,7 @@ class AdminLectureOperationsResponse(BaseModel):
     lecture_name: str
     subject_name: str
     ingestion_status: str
-    job_tracker: JobTrackerResponse
+    job_tracker: Optional[JobTrackerResponse] = None
     created_at: datetime
 
 class AdminUploadVideoRequest(BaseModel):

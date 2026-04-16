@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from app.schemas.ai_schema import ChatRequest, ChatResponse, ExplainRequest, ExplainResponse, SummaryResponse, QuizResponse
 from app.models.user import User
 from app.auth.dependencies import get_current_active_user
 
 # Will implement these in app.ai
-from app.ai.ask import generate_answer
+from app.ai.ask import generate_answer, generate_answer_stream
 from app.ai.explain import generate_explanation
 from app.ai.summary import get_lecture_summary
 from app.ai.quiz import generate_quiz
@@ -23,6 +24,54 @@ async def chat(
         return ChatResponse(answer=answer, sources=sources)
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
+
+
+@router.post("/chat/stream", tags=["AI Inference"])
+async def chat_stream(
+    request: ChatRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Server-Sent Events (SSE) streaming endpoint for real-time AI chat.
+
+    Returns a `text/event-stream` response. Each event is a JSON object:
+    - `{"type": "sources", "sources": [...]}` — emitted first with citation list
+    - `{"type": "token", "content": "..."}` — one event per generated token
+    - `{"type": "done"}` — signals stream completion
+
+    The original `/ai/chat` endpoint (blocking JSON) is preserved for non-SSE consumers.
+    """
+    history_dicts = [h.model_dump() for h in request.history[-6:]]
+
+    # Validate access BEFORE starting the generator — once StreamingResponse begins,
+    # HTTP headers are committed and we can no longer return a 4xx status code.
+    from app.models.lecture import Lecture
+    from app.models.subject import Subject
+    from beanie import PydanticObjectId
+
+    lecture = await Lecture.get(PydanticObjectId(request.lecture_id))
+    if not lecture:
+        raise HTTPException(status_code=404, detail="Lecture not found")
+
+    subject = await Subject.get(lecture.subject.ref.id)
+    if not subject or str(subject.owner.ref.id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    generator = generate_answer_stream(
+        message=request.message,
+        lecture_id=request.lecture_id,
+        user_id=current_user.id,
+        history=history_dicts
+    )
+
+    return StreamingResponse(
+        generator,
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",   # Disables Nginx/Railway proxy buffering
+        }
+    )
 
 @router.post("/explain", response_model=ExplainResponse)
 async def explain_concept(

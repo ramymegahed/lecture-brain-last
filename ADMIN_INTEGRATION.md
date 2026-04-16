@@ -154,6 +154,68 @@ const triggerAnalytics = async (token) => {
 
 *(Note: Additional POST routes exist for `/admin/upload_pdf` and `/admin/upload_video` using `multipart/form-data` and JSON bodies respectively.)*
 
+### 2.4 AI Presentation Generator Integration
+**`GET /admin/presentation/{lecture_id}`**
+
+**Purpose:** This endpoint is an 'Admin-only' feature that uses RAG (Retrieval-Augmented Generation) to extract key concepts from a processed lecture and transform them into a structured slide deck. It returns information necessary for rendering slides, including Titles, Bullets, Speaker Notes, and Visual Suggestions.
+
+**Parameters:**
+*   `lecture_id` (Path variable): The unique string ID of the lecture to summarize/present.
+*   `force_regenerate` (Query parameter, Optional, Default: `false`): By default, the system caches generated presentations. If set to `true` (e.g., `?force_regenerate=true`), the backend will bypass the cache and use OpenAI credits to build a fresh presentation. This should be exposed as an explicit action in the UI (like a "Regenerate" button) to save costs.
+
+**Response Structure (JSON):**
+```json
+{
+  "lecture_id": "60d5ec49b311f93f54bd4c8f",
+  "presentation_title": "Understanding Eventual Consistency",
+  "slides": [
+    {
+      "slide_number": 1,
+      "title": "What is Eventual Consistency?",
+      "bullets": [
+        "A guarantee that all replicas will eventually yield the same state.",
+        "Emphasizes high availability over immediate consistency.",
+        "Common in large distributed systems like DNS."
+      ],
+      "speaker_notes": "Welcome everyone. Today we are discussing eventual consistency. Remember how earlier we talked about strict consistency? This is the pragmatic alternative used in the real world when scale is prioritized.",
+      "suggested_visual": "A diagram showing three databases syncing asynchronously over time, with clock icons indicating delay."
+    }
+  ]
+}
+```
+
+**Frontend Implementation Idea:**
+Rather than immediately "downloading" a file, implement a **'Preview' mode** UI:
+1. Map over the `slides` array and render a stylized "Slide Preview" container.
+2. Render `title` and `bullets` clearly as the slide body.
+3. *Crucially*, prominently display `speaker_notes` below the slide or in a side panel for the presenter to read.
+4. Display `suggested_visual` near the slide preview as an AI prompt hint; you can optionally hook this up to an image generator or just leave it as text guidance for the user.
+5. Provide UI options to "Export to PDF" or "Export to PowerPoint" using a client-side library once the user is happy with the preview.
+
+**Error Handling / Edge Cases:**
+*   **`422 Validation Error`**: Occurs if the lecture doesn't have sufficient transcribed text or if parameter structure is malformed. Show a generic validation message.
+*   **`400 Bad Request`**: Thrown if the lecture hasn't been completely processed yet. Ensure you've checked the status from `/admin/operations` before enabling the 'Generate Presentation' button.
+*   **`404 Not Found`**: The lecture ID provided does not exist.
+
+**Axios Implementation Snippet:**
+```javascript
+import axios from 'axios';
+
+const generatePresentation = async (token, lectureId, force = false) => {
+  try {
+    const response = await axios.get(`/admin/presentation/${lectureId}?force_regenerate=${force}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data; // The Presentation document
+  } catch (error) {
+    if (error.response && error.response.status === 400) {
+      console.warn("Lecture might not be processed yet.");
+    }
+    throw error;
+  }
+};
+```
+
 ## 3. Error Handling
 
 When interacting with the `/admin` prefix endpoints, pay special attention to the following standard HTTP errors:

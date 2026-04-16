@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from typing import Annotated
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.schemas.auth_schema import UserCreate, UserResponse, Token, LoginResponse
 from app.models.user import User
@@ -10,8 +12,18 @@ from app.auth.dependencies import get_current_active_user
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
+# Module-level limiter — SlowAPI will use the app-level state set in main.py.
+# get_remote_address resolves the client IP, respecting X-Forwarded-For from proxies.
+limiter = Limiter(key_func=get_remote_address)
+
+
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_in: UserCreate):
+@limiter.limit("5/minute")
+async def register(request: Request, user_in: UserCreate):
+    """
+    Register a new user account.
+    Rate limited to 5 requests per minute per IP to prevent account-creation spam.
+    """
     existing_user = await User.find_one(User.email == user_in.email)
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -22,8 +34,14 @@ async def register(user_in: UserCreate):
     
     return UserResponse(id=str(new_user.id), email=new_user.email, role=new_user.role, is_active=new_user.is_active)
 
+
 @router.post("/login", response_model=LoginResponse)
-async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+@limiter.limit("10/minute")
+async def login(request: Request, form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+    """
+    Authenticate and receive a JWT access token.
+    Rate limited to 10 requests per minute per IP to mitigate brute-force attacks.
+    """
     user = await User.find_one(User.email == form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -46,6 +64,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
         "token_type": "bearer",
         "user": user_data
     }
+
 
 @router.get("/me", response_model=UserResponse)
 async def read_users_me(current_user: Annotated[User, Depends(get_current_active_user)]):

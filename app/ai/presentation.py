@@ -1,4 +1,5 @@
 import json
+import re
 from beanie import PydanticObjectId
 from typing import Optional
 
@@ -61,12 +62,14 @@ async def generate_presentation(lecture_id: str, force_regenerate: bool = False)
 
     content = response.choices[0].message.content
 
-    # 5. Parse and Save
+    # 5. Sanitize LLM output: strip markdown code fences if the model wrapped JSON in ```json ... ```
+    # This MUST happen on the raw string before json.loads() — json.loads() never returns a str.
+    content = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.IGNORECASE)
+    content = re.sub(r"\s*```$", "", content.strip())
+
+    # 6. Parse and Save
     try:
         parsed = json.loads(content)
-        # Handle markdown code fences if LLM misbehaves
-        if isinstance(parsed, str):
-            parsed = json.loads(parsed.strip("```json").strip("```").strip())
     except Exception as e:
         raise ValueError(f"Failed to parse LLM presentation output: {e}")
 

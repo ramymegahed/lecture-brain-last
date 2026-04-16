@@ -94,3 +94,61 @@ async def generate_answer(message: str, lecture_id: str, user_id: PydanticObject
     asyncio.create_task(_save_chat_log(lecture, message, answer))
     
     return answer, sources
+
+
+async def generate_answer_stream(
+    message: str,
+    lecture_id: str,
+    user_id: PydanticObjectId,
+    history: List[dict] = None
+):
+    """
+    Streaming variant of generate_answer(). 
+    Async generator that yields SSE-formatted token chunks as they arrive from OpenAI.
+    The full assembled answer is logged to ChatLog after streaming completes.
+    """
+    lecture = await Lecture.get(PydanticObjectId(lecture_id))
+    if not lecture:
+        raise ValueError("Lecture not found")
+
+    subject = await Subject.get(lecture.subject.ref.id)
+    if not subject or str(subject.owner.ref.id) != str(user_id):
+        raise ValueError("Access denied")
+
+    global_ctx, retrieved_chunks, sources = await build_context(lecture_id, message)
+
+    prompt = SYSTEM_PROMPT_ASK.format(
+        global_context=global_ctx,
+        retrieved_chunks=retrieved_chunks
+    )
+
+    messages = [{"role": "system", "content": prompt}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": message})
+
+    # Yield sources metadata as the first SSE event so the client knows the citations
+    import json as _json
+    yield f"data: {_json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+
+    full_answer = []
+    async with await openai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        temperature=0.2,
+        stream=True
+    ) as stream:
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                full_answer.append(delta)
+                # Yield each token chunk as an SSE data event
+                yield f"data: {_json.dumps({'type': 'token', 'content': delta})}\n\n"
+
+    # Signal stream completion
+    yield f"data: {_json.dumps({'type': 'done'})}\n\n"
+
+    # Non-blocking analytics logging — assembled from streamed chunks
+    assembled_answer = "".join(full_answer)
+    asyncio.create_task(_save_chat_log(lecture, message, assembled_answer))
+
