@@ -46,7 +46,6 @@ class AdminLectureOperationsResponse(BaseModel):
 class AdminUploadVideoRequest(BaseModel):
     lecture_id: Optional[str] = None
     url: str
-    extract_frames: bool = False
 
 class AdminUploadResponse(BaseModel):
     lecture_id: str

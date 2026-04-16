@@ -7,7 +7,7 @@ from app.models.user import User
 from app.models.lecture import Lecture
 from app.models.knowledge import KnowledgeChunk
 from app.models.knowledge_card import KnowledgeCard
-from app.schemas.subject_schema import SubjectCreate, SubjectResponse, SubjectUpdate
+from app.schemas.subject_schema import SubjectCreate, SubjectResponse
 from app.auth.dependencies import get_current_active_user
 
 router = APIRouter(prefix="/subjects", tags=["Subjects"])

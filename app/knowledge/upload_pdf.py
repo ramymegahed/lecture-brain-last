@@ -33,8 +33,12 @@ async def process_pdf_background(lecture_id: str, pdf_bytes: bytes):
     try:
         await update_job_status(lecture_id, "upload_status", "completed")
         await update_job_status(lecture_id, "extraction_status", "processing")
-        # 1 & 2. Open from bytes — PyMuPDF accepts a bytes stream directly
+        # 1 & 2. Open from bytes — PyMuPDF accepts a bytes stream directly.
+        # We delete pdf_bytes immediately after fitz.open() because PyMuPDF
+        # creates its own internal copy. Holding both simultaneously doubles
+        # peak RAM usage — critical on Railway's 0.5 GB limit.
         doc = fitz.open(stream=io.BytesIO(pdf_bytes), filetype="pdf")
+        del pdf_bytes  # Release the upload copy — fitz has its own internal buffer now
         pages = []
         full_text = ""
         for page_num in range(len(doc)):

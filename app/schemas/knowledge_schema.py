@@ -13,4 +13,3 @@ class UploadTextRequest(BaseModel):
 
 class UploadVideoRequest(BaseModel):
     url: str
-    extract_frames: bool = False

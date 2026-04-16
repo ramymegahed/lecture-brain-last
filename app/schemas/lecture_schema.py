@@ -7,11 +7,6 @@ class LectureCreate(BaseModel):
     description: Optional[str] = None
     subject_id: str
 
-class LectureUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    status: Optional[str] = None
-
 class LectureResponse(BaseModel):
     id: str
     title: str

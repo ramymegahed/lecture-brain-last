@@ -2,29 +2,32 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# ── Layer 1: System packages (cached until Dockerfile changes) ──────────────
+# Prevents Python from writing .pyc files and buffers stdout/stderr
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# ── Layer 1: System packages ─────────────────────────────────────────────────
+# ffmpeg: required by yt-dlp for audio extraction (MP3 postprocessor)
+# curl, ca-certificates, openssl: HTTPS and health checks
+# Removed: tesseract-ocr, poppler-utils, libgl1 (not used anywhere in codebase)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     ca-certificates \
     openssl \
-    tesseract-ocr \
-    poppler-utils \
-    libgl1 \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Layer 2: CPU-only PyTorch (prevents openai-whisper pulling CUDA/GPU ~2GB) 
-# This layer is cached as long as the torch version pin doesn't change.
-RUN pip install --no-cache-dir \
-    torch==2.2.2 torchaudio==2.2.2 \
-    --index-url https://download.pytorch.org/whl/cpu
-
-# ── Layer 3: Python dependencies (cached until requirements.txt changes) ────
+# ── Layer 2: Python dependencies ─────────────────────────────────────────────
+# NOTE: torch/torchaudio are intentionally NOT installed.
+# We previously ran openai-whisper locally, which requires ~2 GB RAM for the
+# 'small' model — 4× the Railway Free Tier limit (0.5 GB). We now use the
+# OpenAI Whisper API (whisper-1) instead, which uses zero local RAM.
+# Removing torch saves ~400 MB of Docker image size.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ── Layer 4: Application code (only layer that changes on each code edit) ───
+# ── Layer 3: Application code ─────────────────────────────────────────────────
 COPY . .
 
 RUN mkdir -p uploads

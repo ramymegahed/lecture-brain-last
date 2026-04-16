@@ -86,21 +86,13 @@ async def upload_video(
     lecture.status = "processing"
     await lecture.save()
 
-    background_tasks.add_task(process_video_background, lecture_id, request.url, request.extract_frames)
-
-    warning = None
-    if request.extract_frames:
-        warning = (
-            "Frame extraction is enabled. Processing time may be significantly longer "
-            "depending on video length (estimated 5–35+ minutes for a typical lecture)."
-        )
+    background_tasks.add_task(process_video_background, lecture_id, request.url)
 
     return UploadResponse(
         filename=request.url,
         lecture_id=lecture_id,
         status="processing",
-        message="Video processing started in background",
-        warning=warning
+        message="Video processing started in background"
     )
 
 @router.post("/upload_text/{lecture_id}", response_model=UploadResponse)

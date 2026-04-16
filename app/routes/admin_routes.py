@@ -161,17 +161,12 @@ async def admin_upload_video(
     lecture.status = "processing"
     await lecture.save()
 
-    background_tasks.add_task(process_video_background, final_lecture_id, request.url, request.extract_frames)
-
-    warning = None
-    if request.extract_frames:
-        warning = "Frame extraction is enabled. Processing will take significantly longer."
+    background_tasks.add_task(process_video_background, final_lecture_id, request.url)
 
     return AdminUploadResponse(
         lecture_id=final_lecture_id,
         status="processing",
-        message="Video ingest successful, processing natively in background.",
-        warning=warning
+        message="Video ingest successful, processing natively in background."
     )
 
 @router.get("/operations", response_model=List[AdminLectureOperationsResponse], dependencies=[Depends(get_current_admin_user)])
