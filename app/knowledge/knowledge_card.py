@@ -55,6 +55,7 @@ async def generate_and_save_knowledge_card(lecture_id: str, document_text: str):
         
         result_str = response.choices[0].message.content
         data = json.loads(result_str)
+        del result_str  # raw JSON string no longer needed — `data` dict holds the parsed values
         
         lecture = await Lecture.get(PydanticObjectId(lecture_id))
         
@@ -64,6 +65,7 @@ async def generate_and_save_knowledge_card(lecture_id: str, document_text: str):
             existing_card.concepts = data.get("concepts", existing_card.concepts)
             existing_card.important_details = data.get("important_details", existing_card.important_details)
             existing_card.examples = data.get("examples", existing_card.examples)
+            del data  # all fields extracted; release the parsed dict before the DB await
             await existing_card.save()
             return existing_card
         else:
@@ -75,6 +77,7 @@ async def generate_and_save_knowledge_card(lecture_id: str, document_text: str):
                 important_details=data.get("important_details", ""),
                 examples=data.get("examples", [])
             )
+            del data  # all fields extracted; release the parsed dict before the DB await
             await card.insert()
             return card
         

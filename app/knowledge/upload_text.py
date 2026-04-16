@@ -20,11 +20,16 @@ async def process_text_background(lecture_id: str, text: str):
         return
 
     try:
-        cleaned_text = clean_text(text)
+        # clean_text (regex) and chunk_document (while-loop) are CPU-bound.
+        # Run them in the thread pool so they do not block the asyncio event loop.
+        cleaned_text = await asyncio.to_thread(clean_text, text)
+        del text  # release raw input — cleaned_text is now the canonical copy
         pages = [{"page_number": 1, "text": cleaned_text}]
-        
-        chunks = chunk_document(pages)
-        
+        del cleaned_text  # release before chunking; `pages` holds the only copy needed
+
+        chunks = await asyncio.to_thread(chunk_document, pages)
+        del pages  # chunker has consumed pages; free before the embedding loop
+
         BATCH_SIZE = 100
         for i in range(0, len(chunks), BATCH_SIZE):
             batch = chunks[i:i + BATCH_SIZE]
@@ -46,7 +51,9 @@ async def process_text_background(lecture_id: str, text: str):
             if knowledge_chunks:
                 await KnowledgeChunk.insert_many(knowledge_chunks)
 
-        sample_text = sample_document_text(text)
+        # BUG FIX: `text` was deleted above; re-derive the sample from chunks
+        # (same approach used in video_processor.py after the memory refactor).
+        sample_text = sample_document_text(" ".join(c["text"] for c in chunks))
         await generate_and_save_knowledge_card(lecture_id, sample_text)
 
         for source in lecture.sources:

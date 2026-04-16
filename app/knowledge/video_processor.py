@@ -193,10 +193,16 @@ async def process_video_background(lecture_id: str, url: str):
         await update_job_status(lecture_id, "extraction_status", "completed")
 
         # 3. Chunk & Embed
+        # clean_text (regex) and chunk_document (while-loop) are CPU-bound.
+        # Running them in a thread pool keeps the event loop free for other
+        # uploads and HTTP requests during this stage.
         await update_job_status(lecture_id, "chunking_status", "processing")
-        cleaned_text = clean_text(text)
+        cleaned_text = await asyncio.to_thread(clean_text, text)
+        del text  # release the raw transcription — could be MBs for a 1-hour lecture
         pages = [{"page_number": 1, "text": cleaned_text}]
-        chunks = chunk_document(pages)
+        del cleaned_text  # chunker is about to consume pages; release the standalone copy
+        chunks = await asyncio.to_thread(chunk_document, pages)
+        del pages  # chunker has consumed pages; free before the embedding loop
         await update_job_status(lecture_id, "chunking_status", "completed")
 
         await update_job_status(lecture_id, "embedding_status", "processing")
@@ -221,8 +227,11 @@ async def process_video_background(lecture_id: str, url: str):
         await update_job_status(lecture_id, "embedding_status", "completed")
 
         # 4. Generate Knowledge Card
+        # Re-derive the sample from already-processed chunks instead of the original
+        # `text` variable (which has been freed). This avoids holding the full transcription
+        # alongside all chunk objects simultaneously.
         await update_job_status(lecture_id, "card_generation_status", "processing")
-        sample_text = sample_document_text(text)
+        sample_text = sample_document_text(" ".join(c["text"] for c in chunks))
         await generate_and_save_knowledge_card(lecture_id, sample_text)
         await update_job_status(lecture_id, "card_generation_status", "completed")
 

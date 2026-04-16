@@ -45,10 +45,10 @@ async def generate_subject_analytics() -> dict:
                 "ai_insight": existing_analytics_doc.ai_insight
             }, indent=2)
             
-        # 3. Format new questions
-        new_questions_str = ""
-        for i, log in enumerate(logs):
-            new_questions_str += f"[{i+1}] Q: {log.question}\n"
+        # 3. Format new questions — join() is a single allocation vs O(n²) += loop
+        new_questions_str = "\n".join(
+            f"[{i+1}] Q: {log.question}" for i, log in enumerate(logs)
+        )
             
         # 4. Prompt LLM
         prompt = SYSTEM_PROMPT_ANALYTICS.format(
