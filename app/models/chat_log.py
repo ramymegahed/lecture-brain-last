@@ -17,6 +17,7 @@ class ChatLog(Document):
     subject_id: str           # flat copy for grouping — DO NOT REMOVE
     question: str
     answer: str               # stored for context richness in LLM prompt
+    action_type: str = Field(default="chat")
     analyzed: bool = Field(default=False)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

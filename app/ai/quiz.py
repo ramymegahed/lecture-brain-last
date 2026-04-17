@@ -66,8 +66,9 @@ async def generate_quiz(lecture_id: str, user_id: PydanticObjectId) -> QuizRespo
                     explanation=q["explanation"]
                 )
             )
-            
-        return QuizResponse(lecture_id=lecture_id, questions=questions)
+        # Existing parsing logic
+        quiz_response = QuizResponse(lecture_id=lecture_id, questions=questions)
+        return quiz_response
     except Exception as e:
         logger.error(f"Error parsing quiz JSON: {e}")
         logger.debug(f"Raw response: {response.choices[0].message.content}")

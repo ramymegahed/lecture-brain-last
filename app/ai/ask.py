@@ -44,8 +44,20 @@ async def build_context(lecture_id: str, query: str) -> Tuple[str, str, List[str
 
     return global_context, retrieved_chunks, sources
 
+async def fetch_chat_history(lecture_id: str, limit: int = 6) -> List[dict]:
+    """Fetch the most recent chat logs to build short-term conversational memory."""
+    logs = await ChatLog.find(ChatLog.lecture_id == lecture_id).sort(-ChatLog.created_at).limit(limit//2).to_list()
+    # Reverse to chronological order
+    logs.reverse()
+    
+    history = []
+    for log in logs:
+        history.append({"role": "user", "content": log.question})
+        history.append({"role": "assistant", "content": log.answer})
+    return history
+
 async def _save_chat_log(lecture: Lecture, message: str, answer: str):
-    """Fire and forget save. Fails silently so user experience is not impacted."""
+    """Awaitable save to guarantee the record is securely stored in MongoDB."""
     try:
         log = ChatLog(
             lecture=lecture,
@@ -55,8 +67,8 @@ async def _save_chat_log(lecture: Lecture, message: str, answer: str):
             answer=answer,
         )
         await log.insert()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Failed to save chat log: {e}")
 
 async def generate_answer(message: str, lecture_id: str, user_id: PydanticObjectId, history: List[dict] = None) -> Tuple[str, List[str]]:
     """
@@ -77,9 +89,11 @@ async def generate_answer(message: str, lecture_id: str, user_id: PydanticObject
         retrieved_chunks=retrieved_chunks
     )
 
+    db_history = await fetch_chat_history(lecture_id, limit=6)
+
     messages = [{"role": "system", "content": prompt}]
-    if history:
-        messages.extend(history)
+    # Override client history with authenticated, verified DB history
+    messages.extend(db_history)
     messages.append({"role": "user", "content": message})
 
     response = await openai_client.chat.completions.create(
@@ -90,8 +104,8 @@ async def generate_answer(message: str, lecture_id: str, user_id: PydanticObject
     
     answer = response.choices[0].message.content
     
-    # Non-blocking analytics logging
-    asyncio.create_task(_save_chat_log(lecture, message, answer))
+    # Synchronously await saving to guarantee no lost context or state fragmentation
+    await _save_chat_log(lecture, message, answer)
     
     return answer, sources
 
@@ -121,10 +135,11 @@ async def generate_answer_stream(
         global_context=global_ctx,
         retrieved_chunks=retrieved_chunks
     )
+    
+    db_history = await fetch_chat_history(lecture_id, limit=6)
 
     messages = [{"role": "system", "content": prompt}]
-    if history:
-        messages.extend(history)
+    messages.extend(db_history)
     messages.append({"role": "user", "content": message})
 
     # Yield sources metadata as the first SSE event so the client knows the citations
@@ -132,23 +147,25 @@ async def generate_answer_stream(
     yield f"data: {_json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
     full_answer = []
-    async with await openai_client.chat.completions.create(
-        model="gpt-4o",
-        messages=messages,
-        temperature=0.2,
-        stream=True
-    ) as stream:
-        async for chunk in stream:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                full_answer.append(delta)
-                # Yield each token chunk as an SSE data event
-                yield f"data: {_json.dumps({'type': 'token', 'content': delta})}\n\n"
+    try:
+        async with await openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            temperature=0.2,
+            stream=True
+        ) as stream:
+            async for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    full_answer.append(delta)
+                    # Yield each token chunk as an SSE data event
+                    yield f"data: {_json.dumps({'type': 'token', 'content': delta})}\n\n"
 
-    # Signal stream completion
-    yield f"data: {_json.dumps({'type': 'done'})}\n\n"
-
-    # Non-blocking analytics logging — assembled from streamed chunks
-    assembled_answer = "".join(full_answer)
-    asyncio.create_task(_save_chat_log(lecture, message, assembled_answer))
+        # Signal stream completion
+        yield f"data: {_json.dumps({'type': 'done'})}\n\n"
+    finally:
+        # Guarantee saving even if client disconnects mid-stream or generates partial tokens
+        assembled_answer = "".join(full_answer)
+        if assembled_answer:
+            await _save_chat_log(lecture, message, assembled_answer)
 

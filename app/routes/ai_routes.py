@@ -44,7 +44,10 @@ async def get_chat_history(
     if not subject or str(subject.owner.ref.id) != str(current_user.id):
         raise HTTPException(status_code=403, detail="Access denied")
 
-    logs = await ChatLog.find(ChatLog.lecture_id == lecture_id).sort(+ChatLog.created_at).to_list()
+    logs = await ChatLog.find(
+        ChatLog.lecture_id == lecture_id,
+        ChatLog.action_type == "chat"
+    ).sort(+ChatLog.created_at).to_list()
     
     history_messages = []
     for log in logs:
