@@ -22,3 +22,7 @@ class ChatLog(Document):
 
     class Settings:
         name = "chat_logs"
+        indexes = [
+            "lecture_id",
+            "subject_id"
+        ]

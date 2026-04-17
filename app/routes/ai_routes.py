@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from app.schemas.ai_schema import ChatRequest, ChatResponse, ExplainRequest, ExplainResponse, SummaryResponse, QuizResponse
+from app.schemas.ai_schema import ChatRequest, ChatResponse, ChatHistoryResponse, ExplainRequest, ExplainResponse, SummaryResponse, QuizResponse, Message
 from app.models.user import User
 from app.auth.dependencies import get_current_active_user
 
@@ -25,6 +25,33 @@ async def chat(
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
+
+@router.get("/chat/history/{lecture_id}", response_model=ChatHistoryResponse, tags=["AI Inference"])
+async def get_chat_history(
+    lecture_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    from app.models.lecture import Lecture
+    from app.models.subject import Subject
+    from beanie import PydanticObjectId
+    from app.models.chat_log import ChatLog
+
+    lecture = await Lecture.get(PydanticObjectId(lecture_id))
+    if not lecture:
+        raise HTTPException(status_code=404, detail="Lecture not found")
+
+    subject = await Subject.get(lecture.subject.ref.id)
+    if not subject or str(subject.owner.ref.id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    logs = await ChatLog.find(ChatLog.lecture_id == lecture_id).sort(+ChatLog.created_at).to_list()
+    
+    history_messages = []
+    for log in logs:
+        history_messages.append(Message(role="user", content=log.question))
+        history_messages.append(Message(role="assistant", content=log.answer))
+        
+    return ChatHistoryResponse(history=history_messages)
 
 @router.post("/chat/stream", tags=["AI Inference"])
 async def chat_stream(

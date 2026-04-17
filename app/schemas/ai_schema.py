@@ -14,6 +14,9 @@ class ChatResponse(BaseModel):
     answer: str
     sources: List[str] = [] # e.g. "Lecture X, Page Y"
 
+class ChatHistoryResponse(BaseModel):
+    history: List[Message]
+
 class ExplainRequest(BaseModel):
     concept: str
     lecture_id: Optional[str] = None
