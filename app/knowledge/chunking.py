@@ -3,7 +3,8 @@ import re
 import bisect
 
 def clean_text(text: str) -> str:
-    text = re.sub(r'\s+', ' ', text)       # collapse whitespace
+    # Collapse horizontal whitespace, preserving newlines for semantic chunking
+    text = re.sub(r'[^\S\r\n]+', ' ', text)       
     text = re.sub(r'\n{3,}', '\n\n', text) # max 2 newlines
     return text.strip()
 
@@ -15,8 +16,13 @@ def recursive_character_text_splitter(text: str, chunk_size: int = 1000, chunk_o
     chunks = []
     start = 0
     text_length = len(text)
+    iteration_count = 0
     
     while start < text_length:
+        iteration_count += 1
+        if iteration_count % 10 == 0:
+            print(f"Chunking progress: {start}/{text_length} chars ({len(chunks)} chunks so far)")
+
         end = start + chunk_size
         if end >= text_length:
             chunks.append({
@@ -30,15 +36,27 @@ def recursive_character_text_splitter(text: str, chunk_size: int = 1000, chunk_o
         for separator in ["\n\n", "\n", ". ", " "]:
             sep_idx = text.rfind(separator, start, end)
             if sep_idx != -1:
-                break_point = sep_idx + len(separator)
-                break
+                # CRITICAL FIX: Ensure the break point is far enough forward that subtracting
+                # chunk_overlap won't push 'start' backwards, creating an infinite loop.
+                if sep_idx + len(separator) > start + chunk_overlap:
+                    break_point = sep_idx + len(separator)
+                    break
                 
         chunks.append({
             "text": text[start:break_point].strip(),
             "start_idx": start
         })
-        start = break_point - chunk_overlap
         
+        # Advance the pointer
+        next_start = break_point - chunk_overlap
+        
+        # Fallback safeguard against infinite loops 
+        if next_start <= start:
+            start = start + (chunk_size - chunk_overlap)
+        else:
+            start = next_start
+            
+    print(f"Chunking complete. Yielded {len(chunks)} chunks.")
     return chunks
 
 def chunk_document(pages: List[Dict[str, any]]) -> List[Dict[str, any]]:
