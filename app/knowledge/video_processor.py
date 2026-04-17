@@ -236,21 +236,25 @@ async def process_video_background(lecture_id: str, url: str):
         await update_job_status(lecture_id, "card_generation_status", "completed")
 
         # 5. Update status
-        for source in lecture.sources:
-            if source.url == url:
-                source.status = "completed"
-        lecture.status = "completed" if all(s.status == "completed" for s in lecture.sources) else "processing"
-        await lecture.save()
+        lecture = await Lecture.get(PydanticObjectId(lecture_id))
+        if lecture:
+            for source in lecture.sources:
+                if source.url == url:
+                    source.status = "completed"
+            lecture.status = "completed" if all(s.status == "completed" for s in lecture.sources) else "processing"
+            await lecture.save()
 
     except Exception as e:
         logger.error(f"Error processing video {url}: {e}", exc_info=True)
         await update_job_status(lecture_id, "extraction_status", "failed", error=str(e))
-        for source in lecture.sources:
-            if source.url == url:
-                source.status = "failed"
-                source.error = str(e)
-        lecture.status = "failed"
-        await lecture.save()
+        lecture = await Lecture.get(PydanticObjectId(lecture_id))
+        if lecture:
+            for source in lecture.sources:
+                if source.url == url:
+                    source.status = "failed"
+                    source.error = str(e)
+            lecture.status = "failed"
+            await lecture.save()
 
     finally:
         # Guaranteed cleanup — runs on both success AND exception

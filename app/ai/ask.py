@@ -29,7 +29,7 @@ async def build_context(lecture_id: str, query: str) -> Tuple[str, str, List[str
         return global_context, "", []
 
     # 3. Vector Search
-    results = await vector_search(query_embedding=query_embeddings[0], limit=5, lecture_id=lecture_id)
+    results = await vector_search(query_embedding=query_embeddings[0], limit=8, lecture_id=lecture_id)
     
     retrieved_chunks = ""
     sources = []
@@ -40,7 +40,7 @@ async def build_context(lecture_id: str, query: str) -> Tuple[str, str, List[str
         text = doc.get('text', '')
         
         sources.append(f"Page {page} (Similarity: {score:.2f})")
-        retrieved_chunks += f"\n--- Chunk {idx + 1} (Page {page}) ---\n{text}\n"
+        retrieved_chunks += f"\n--- Chunk {idx + 1} (Source: Page / Timestamp: {page}) ---\n{text}\n"
 
     return global_context, retrieved_chunks, sources
 
@@ -83,7 +83,7 @@ async def generate_answer(message: str, lecture_id: str, user_id: PydanticObject
     messages.append({"role": "user", "content": message})
 
     response = await openai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=messages,
         temperature=0.2
     )
@@ -133,7 +133,7 @@ async def generate_answer_stream(
 
     full_answer = []
     async with await openai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=messages,
         temperature=0.2,
         stream=True

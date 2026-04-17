@@ -17,7 +17,7 @@ async def get_lecture_summary(lecture_id: str, user_id: PydanticObjectId) -> Kno
     if not subject or str(subject.owner.ref.id) != str(user_id):
         raise ValueError("Access denied")
 
-    card = await KnowledgeCard.find_one(KnowledgeCard.lecture.id == PydanticObjectId(lecture_id))
+    card = await KnowledgeCard.find_one({"lecture.$id": PydanticObjectId(lecture_id)})
     
     if not card:
         return None

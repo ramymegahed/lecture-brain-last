@@ -16,7 +16,7 @@ async def generate_and_save_knowledge_card(lecture_id: str, document_text: str):
     Uses the shared openai_client singleton from app.core.clients.
     """
     
-    existing_card = await KnowledgeCard.find_one(KnowledgeCard.lecture.id == PydanticObjectId(lecture_id))
+    existing_card = await KnowledgeCard.find_one({"lecture.$id": PydanticObjectId(lecture_id)})
     
     prompt = f"""
     You are an expert educational AI. 
@@ -47,7 +47,7 @@ async def generate_and_save_knowledge_card(lecture_id: str, document_text: str):
     
     try:
         response = await openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             response_format={ "type": "json_object" },
             temperature=0.7
