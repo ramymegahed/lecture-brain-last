@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from beanie import PydanticObjectId
 from app.core.clients import openai_client
@@ -7,7 +8,7 @@ from app.models.chat_log import ChatLog
 from app.models.subject_analytics import SubjectAnalytics, WeakTopic
 from app.ai.prompts import SYSTEM_PROMPT_ANALYTICS
 
-BATCH_LIMIT = 200
+BATCH_LIMIT = 50
 
 async def generate_subject_analytics() -> dict:
     """
@@ -66,13 +67,22 @@ async def generate_subject_analytics() -> dict:
         
         content = response.choices[0].message.content
         
+        # 1. Pre-process to strip markdown wrappers before parsing
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        elif content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+        
+        # 2. Clean malformed escapes (convert \xNN to \u00NN and escape unescaped backslashes)
+        content = re.sub(r'\\x([0-9a-fA-F]{2})', r'\\u00\1', content)
+        content = re.sub(r'\\(?![\"\\/bfnrtu])', r'\\\\', content)
+        
         try:
-            parsed = json.loads(content)
-            
-            # Remove markdown JSON wrappers if present
-            if isinstance(parsed, str):
-                parsed = json.loads(parsed.strip("```json").strip("```").strip())
-                
+            parsed = json.loads(content, strict=False)
         except Exception as e:
             print(f"Error parsing JSON from analytics LLM: {e}")
             continue

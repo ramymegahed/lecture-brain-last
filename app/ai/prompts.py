@@ -52,10 +52,12 @@ Below is a batch of student Q&A interactions from the subject "{subject_name}".
 Current analytics (update these, do not discard, but drop if no longer overall true):
 {existing_analytics}
 
-New interactions (up to 200 Q&A pairs):
+New interactions (up to 50 Q&A pairs):
 {new_questions}
 
-Respond with ONLY a JSON object exactly matching this schema:
+Provide a concise, summarized overview. Keep all text fields short (maximum 2-3 sentences), and limit lists to maximal 5 items.
+
+Respond with ONLY a pure, raw JSON object exactly matching this schema. DO NOT include any markdown code blocks or ```json wrappers:
 {{
   "weak_topics": [{{"topic": "string", "frequency_score": integer_from_1_to_10}}],
   "common_questions": ["string"],
